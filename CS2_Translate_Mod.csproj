@@ -1,0 +1,107 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>CS2_Translate_Mod</RootNamespace>
+    <AssemblyName>CS2_Translate_Mod</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>1.0.0</Version>
+    <Authors>Rakua-Laqua</Authors>
+    <Description>Cities: Skylines 2 - Mod Japanese Translation Loader &amp; Extractor</Description>
+    <!-- ソースコードは src/ フォルダに配置 -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <!-- ソースコードを src/ から収集 -->
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <!-- ゲームDLL参照（Directory.Build.props の GamePath を使用） -->
+  <PropertyGroup>
+    <ManagedPath>$(GamePath)\Cities2_Data\Managed</ManagedPath>
+  </PropertyGroup>
+
+  <!-- CS2 ゲームアセンブリ -->
+  <ItemGroup>
+    <Reference Include="Game">
+      <HintPath>$(ManagedPath)\Game.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.Core">
+      <HintPath>$(ManagedPath)\Colossal.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.IO.AssetDatabase">
+      <HintPath>$(ManagedPath)\Colossal.IO.AssetDatabase.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.Localization">
+      <HintPath>$(ManagedPath)\Colossal.Localization.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.Logging">
+      <HintPath>$(ManagedPath)\Colossal.Logging.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.UI">
+      <HintPath>$(ManagedPath)\Colossal.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Colossal.UI.Binding">
+      <HintPath>$(ManagedPath)\Colossal.UI.Binding.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Unity アセンブリ -->
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.Entities">
+      <HintPath>$(ManagedPath)\Unity.Entities.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- JSON パーサー（ゲーム同梱） -->
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(ManagedPath)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- 翻訳JSONファイルをビルド出力にコピー -->
+  <ItemGroup>
+    <None Include="Translations\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- デプロイ用のアイテムグループ -->
+  <ItemGroup>
+    <TranslationFilesToDeploy Include="Translations\**\*.json" />
+  </ItemGroup>
+
+  <!-- ビルド後に Mod フォルダへ自動デプロイ -->
+  <Target Name="DeployToModFolder" AfterTargets="Build" Condition="'$(ModOutputPath)' != ''">
+    <!-- DLL をコピー -->
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
+          DestinationFolder="$(ModOutputPath)"
+          SkipUnchangedFiles="true" />
+    <!-- PDB をコピー（デバッグ用） -->
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb"
+          DestinationFolder="$(ModOutputPath)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" />
+    <!-- Translations フォルダをコピー -->
+    <Copy SourceFiles="@(TranslationFilesToDeploy)"
+          DestinationFiles="@(TranslationFilesToDeploy->'$(ModOutputPath)\%(Identity)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Deployed to: $(ModOutputPath)" />
+  </Target>
+
+</Project>

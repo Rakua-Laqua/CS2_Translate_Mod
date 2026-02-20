@@ -1,0 +1,13 @@
+<!--
+  ローカル設定ファイル（Git管理外）
+  ゲームのインストールパスを設定してください。
+
+  使い方:
+  1. このファイルを "Directory.Build.props" にリネーム（.templateを削除）
+  2. GamePath をご自身のCS2インストールパスに変更
+-->
+<Project>
+  <PropertyGroup>
+    <GamePath>C:\Program Files (x86)\Steam\steamapps\common\Cities Skylines II</GamePath>
+  </PropertyGroup>
+</Project>
