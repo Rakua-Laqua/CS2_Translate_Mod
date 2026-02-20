@@ -1,5 +1,20 @@
 # CHANGELOG.md
 
+## v1.1.1 (2026-02-20)
+
+### バグ修正: バニラキーのModファイルへの混入を修正
+- `ExtractBestModIdFromKeys` に `bracketOnly` パラメータを追加
+  - ゲームアセンブリ由来ソース（汎用型・通常型）でブラケットパターン限定モードを適用
+  - ドット区切りフォールバックが `Statistics.XXX`, `Tutorials.XXX` 等のバニラキーをModと誤認していた問題を解決
+- Phase 1.5 の `SupplementFromActiveDictionary` で `ExtractModIdStrict`（ブラケットのみ）を使用
+  - `Statistics`, `Tutorials`, `Progression`, `Glossary` 等のバニラカテゴリがModとして抽出される問題を解決
+- `VanillaPrefixes` を大幅拡充（約70カテゴリ追加）
+  - 情報パネル系（CityInfoPanel, ElectricityInfoPanel 等）
+  - 品質設定系（AnimationQualitySettings, SSAOQualitySettings 等）
+  - 入力系（Keyboard, Mouse, XBOX, PS 等）
+  - ゲームプレイ系（Statistics, Progression, Glossary, Traffic 等）
+- `StandardCategories` も同様に拡充
+
 ## v1.1.0 (2026-02-20)
 
 ### 機能改善: 翻訳抽出ロジックの大幅強化

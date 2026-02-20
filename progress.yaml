@@ -1,11 +1,12 @@
 updated_at: 2026-02-20
-version: v1.1.0
+version: v1.1.1
 phase: 保守・改善
 
 completed:
   - v1.0.0 初回リリース
   - v1.0.1 コードレビュー指摘反映（セキュリティ・バグ・パフォーマンス・アーキテクチャ修正）
   - v1.1.0 翻訳抽出ロジック改善（Mod検出精度向上・Phase 1.5補完抽出・ログ強化）
+  - v1.1.1 バニラキー混入バグ修正（ブラケット限定モード・VanillaPrefixes拡充）
 
 in_progress: []
 
@@ -13,13 +14,13 @@ next:
   - TranslationExtractor の責務分割（God Class 解消）
   - リフレクション依存部分のアダプタ層分離
   - MergeByKeyOverlap の推移的閉包対応
-  - 実ゲーム環境での抽出テスト（ZoningToolkit等の検出確認）
+  - 実ゲーム環境での抽出テスト（バニラ除外確認・ZoningToolkit等）
 
-known_bugs: []
+known_bugs:
+  - MapTextureReplacerのUI文字列はJavaScript(React)にハードコードされておりC#ローカライゼーション経由では抽出不可（Options.系6エントリのみ抽出可能）
 
 notes:
   - GPT 5.3 codex と Claude 4.6 opus の4回のレビュー結果を統合して修正を実施
   - MemorySource の RemoveSource API がゲーム側に存在しないため、リフレクションで内部辞書をクリアする方式で対応
-  - v1.1.0: IdentifyModFromSource をアセンブリ優先方式に変更、MemorySource等の汎用ソース型検出を追加
-  - v1.1.0: Phase 1.5（activeDictionary補完抽出）を新設し、Phase 1で漏れたModキーを救済
-  - v1.1.0: サンプルJSONを削除し、抽出済み翻訳をTranslations.zipに移行
+  - v1.1.1: ゲームアセンブリ由来ソースとPhase 1.5でbracketOnlyモードを導入しドット区切りフォールバックを無効化
+  - v1.1.1: VanillaPrefixes/StandardCategoriesを大幅拡充（情報パネル・品質設定・入力系等約70カテゴリ追加）

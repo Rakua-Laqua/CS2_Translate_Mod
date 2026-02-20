@@ -50,6 +50,7 @@ namespace CS2_Translate_Mod.Extraction
         /// </summary>
         private static readonly string[] VanillaPrefixes = new[]
         {
+            // コアカテゴリ
             "Assets.", "Camera.", "Chirper.", "Cinema.", "Climate.",
             "Common.", "Editor.", "Economy.", "Education.", "Electricity.",
             "Fire.", "Garbage.", "Healthcare.", "Infoviews.", "Input.",
@@ -61,12 +62,44 @@ namespace CS2_Translate_Mod.Extraction
             "SelectedInfoPanel.", "Services.", "Simulation.", "SubServices.",
             "ToolOptions.", "Tools.", "Tooltip.", "Transport.", "Tutorial.",
             "UI.", "Water.", "Zone.",
-            // 追加バニラプレフィックス
+            // 設定・グラフィックス・品質設定系
             "About.", "Achievements.", "AnimationCurve.", "AudioSettings.",
-            "BadInput.", "BadUserInput.", "Budget.", "Content.", "DefaultTool.",
-            "DuplicateEntry.", "EditorSettings.", "EditorTutorials.",
-            "EconomyPanel.", "GameListScreen.", "Gamepad.", "GameplaySettings.",
-            "General.", "GeneralSettings.", "Paradox.", "Toolbar.",
+            "AnimationQualitySettings.", "AntiAliasingQualitySettings.",
+            "CloudsQualitySettings.", "DepthOfFieldQualitySettings.",
+            "DynamicResolutionScaleSettings.", "LevelOfDetailQualitySettings.",
+            "MotionBlurQualitySettings.", "ShadowsQualitySettings.",
+            "SSAOQualitySettings.", "SSGIQualitySettings.", "SSRQualitySettings.",
+            "TerrainQualitySettings.", "TextureQualitySettings.",
+            "VolumetricsQualitySettings.", "WaterQualitySettings.",
+            // 入力・ゲームパッド・キーボード
+            "BadInput.", "BadUserInput.", "Gamepad.", "Keyboard.", "Mouse.",
+            "VirtualKeyboard.", "XBOX.", "PS.", "InputSettings.",
+            // ゲームプレイ・UIパネル系
+            "Budget.", "Content.", "DefaultTool.", "DuplicateEntry.",
+            "EditorSettings.", "EditorTutorials.", "EconomyPanel.",
+            "GameListScreen.", "GameplaySettings.", "General.", "GeneralSettings.",
+            "Graphics.", "GraphicsSettings.", "InterfaceSettings.",
+            "Modding.", "ModdingSettings.", "ModdingToolchain.",
+            "Paradox.", "Toolbar.", "Main.", "Maps.",
+            // 情報パネル系
+            "AirPollutionInfoPanel.", "BikesInfoPanel.", "CityInfoPanel.",
+            "CompanyInfoPanel.", "DisasterInfoPanel.", "EducationInfoPanel.",
+            "ElectricityInfoPanel.", "FireAndRescueInfoPanel.",
+            "GarbageInfoPanel.", "GroundPollutionInfoPanel.",
+            "HealthcareInfoPanel.", "InfoPanels.", "LandValueInfoPanel.",
+            "LevelInfoPanel.", "NaturalResourcesInfoPanel.",
+            "NoisePollutionInfoPanel.", "OutsideConnectionsInfoPanel.",
+            "PoliceInfoPanel.", "PopulationInfoPanel.", "PostInfoPanel.",
+            "RoadsInfoPanel.", "TourismInfoPanel.", "TransportInfoPanel.",
+            "WaterInfoPanel.", "WaterPollutionInfoPanel.", "WealthInfoPanel.",
+            "WorkplacesInfoPanel.",
+            // その他バニラカテゴリ
+            "CinematicCamera.", "EventJournal.", "Glossary.",
+            "NavigationView.", "Notifications.", "Overlay.",
+            "Policy.", "Progression.", "Radio.", "Resources.",
+            "Statistics.", "StatisticsPanel.", "Traffic.",
+            "Tutorials.", "UpgradesMenu.", "WhatsNew.",
+            "LifePath.", "Notifications.",
         };
 
         /// <summary>
@@ -75,17 +108,50 @@ namespace CS2_Translate_Mod.Extraction
         /// </summary>
         private static readonly HashSet<string> StandardCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
+            // VanillaPrefixes のドット前の名前を全て含む
             "Options", "Tooltip", "Description", "SubServices", "Services",
             "Menu", "Assets", "Properties", "Notification", "Chirper",
             "Editor", "Panel", "SelectedInfoPanel", "ToolOptions", "Tools",
-            "Transport", "Tutorial", "UI", "Zone", "Common", "Loading",
-            "MainMenu", "Camera", "Cinema", "Climate", "Economy",
+            "Transport", "Tutorial", "Tutorials", "UI", "Zone", "Common", "Loading",
+            "MainMenu", "Camera", "Cinema", "CinematicCamera", "Climate", "Economy",
             "Education", "Electricity", "Fire", "Garbage", "Healthcare",
-            "Infoviews", "Input", "Map", "Media", "PhotoMode", "Policies",
-            "Simulation", "Water", "About", "Achievements", "Content",
-            "General", "Paradox", "AnimationCurve", "AudioSettings",
-            "BadInput", "BadUserInput", "Budget", "DefaultTool",
-            "DuplicateEntry", "GameListScreen", "Gamepad", "Toolbar",
+            "Infoviews", "Input", "InputSettings", "Map", "Maps", "Media",
+            "PhotoMode", "Policies", "Policy", "Simulation", "Water",
+            "About", "Achievements", "Content", "General", "GeneralSettings",
+            "Paradox", "AnimationCurve", "AudioSettings", "BadInput", "BadUserInput",
+            "Budget", "DefaultTool", "DuplicateEntry", "GameListScreen",
+            "Gamepad", "Toolbar", "Main",
+            // 設定・品質系
+            "AnimationQualitySettings", "AntiAliasingQualitySettings",
+            "CloudsQualitySettings", "DepthOfFieldQualitySettings",
+            "DynamicResolutionScaleSettings", "LevelOfDetailQualitySettings",
+            "MotionBlurQualitySettings", "ShadowsQualitySettings",
+            "SSAOQualitySettings", "SSGIQualitySettings", "SSRQualitySettings",
+            "TerrainQualitySettings", "TextureQualitySettings",
+            "VolumetricsQualitySettings", "WaterQualitySettings",
+            // 入力系
+            "Keyboard", "Mouse", "VirtualKeyboard", "XBOX", "PS",
+            // UIパネル・ゲームプレイ系
+            "EditorSettings", "EditorTutorials", "EconomyPanel",
+            "GameplaySettings", "Graphics", "GraphicsSettings", "InterfaceSettings",
+            "Modding", "ModdingSettings", "ModdingToolchain",
+            // 情報パネル系
+            "AirPollutionInfoPanel", "BikesInfoPanel", "CityInfoPanel",
+            "CompanyInfoPanel", "DisasterInfoPanel", "EducationInfoPanel",
+            "ElectricityInfoPanel", "FireAndRescueInfoPanel",
+            "GarbageInfoPanel", "GroundPollutionInfoPanel",
+            "HealthcareInfoPanel", "InfoPanels", "LandValueInfoPanel",
+            "LevelInfoPanel", "NaturalResourcesInfoPanel",
+            "NoisePollutionInfoPanel", "OutsideConnectionsInfoPanel",
+            "PoliceInfoPanel", "PopulationInfoPanel", "PostInfoPanel",
+            "RoadsInfoPanel", "TourismInfoPanel", "TransportInfoPanel",
+            "WaterInfoPanel", "WaterPollutionInfoPanel", "WealthInfoPanel",
+            "WorkplacesInfoPanel",
+            // その他バニラ
+            "EventJournal", "Glossary", "NavigationView", "Notifications",
+            "Overlay", "Progression", "Radio", "Resources",
+            "Statistics", "StatisticsPanel", "Traffic",
+            "UpgradesMenu", "WhatsNew", "LifePath",
         };
 
         /// <summary>翻訳JSONファイルの最大サイズ (50 MB)</summary>
@@ -602,24 +668,28 @@ namespace CS2_Translate_Mod.Extraction
         /// </summary>
         private static string IdentifyModFromKeysForGenericSource(Dictionary<string, string> entries)
         {
-            return ExtractBestModIdFromKeys(entries, filterVanilla: true);
+            return ExtractBestModIdFromKeys(entries, filterVanilla: true, bracketOnly: true);
         }
 
         /// <summary>
         /// ゲームアセンブリの通常型ソースのキーからMod名を推定する。
-        /// VanillaPrefix フィルタを使い、Mod由来のキーが過半数を占める場合のみ返す。
+        /// ブラケットパターンのみで判定（ドット区切りフォールバックなし）。
         /// </summary>
         private static string IdentifyModFromKeysForGameSource(Dictionary<string, string> entries)
         {
-            return ExtractBestModIdFromKeys(entries, filterVanilla: true);
+            return ExtractBestModIdFromKeys(entries, filterVanilla: true, bracketOnly: true);
         }
 
         /// <summary>
         /// エントリのキーパターンからMod名を推定する（共通実装）。
         /// ModIdPatterns[] を順に試し、候補を集計して最頻出のものを返す。
         /// filterVanilla=true の場合、VanillaPrefix に一致するキーをスキップする。
+        /// bracketOnly=true の場合、ブラケットパターンのみで判定（ドット区切りフォールバック無し）。
+        /// ゲームアセンブリ由来のソースでは bracketOnly=true を使うことで
+        /// バニラキー（Statistics.XXX, Tutorials.XXX 等）をModと誤認するのを防ぐ。
         /// </summary>
-        private static string ExtractBestModIdFromKeys(Dictionary<string, string> entries, bool filterVanilla)
+        private static string ExtractBestModIdFromKeys(
+            Dictionary<string, string> entries, bool filterVanilla, bool bracketOnly = false)
         {
             var candidates = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -630,7 +700,7 @@ namespace CS2_Translate_Mod.Extraction
 
                 string modId = null;
 
-                // 複数パターンを順に試す
+                // 複数パターンを順に試す（ブラケットパターン）
                 foreach (var pattern in ModIdPatterns)
                 {
                     var match = pattern.Match(key);
@@ -641,8 +711,8 @@ namespace CS2_Translate_Mod.Extraction
                     }
                 }
 
-                // パターン不一致 → ドット区切りの最初のセグメント（標準カテゴリでなければ）
-                if (string.IsNullOrEmpty(modId))
+                // bracketOnly=false の場合のみ: ドット区切りの最初のセグメントでフォールバック
+                if (!bracketOnly && string.IsNullOrEmpty(modId))
                 {
                     var parts = key.Split('.');
                     if (parts.Length >= 2 && !IsStandardCategory(parts[0]))
@@ -738,7 +808,9 @@ namespace CS2_Translate_Mod.Extraction
 
             foreach (var kvp in uncollected)
             {
-                var modId = ExtractModId(kvp.Key);
+                // Phase 1.5 ではブラケットパターンのみでMod判定（ドット区切りフォールバック無し）
+                // これにより Statistics.XXX, Tutorials.XXX 等のバニラキーがModと誤認されるのを防ぐ
+                var modId = ExtractModIdStrict(kvp.Key);
                 if (string.IsNullOrEmpty(modId))
                     continue; // Mod判定不能 → スキップ
 
@@ -1283,6 +1355,25 @@ namespace CS2_Translate_Mod.Extraction
                 if (!IsStandardCategory(firstPart))
                 {
                     return SanitizeModId(firstPart);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// エントリキーからMod識別子を推定する（厳格版・Phase 1.5専用）。
+        /// ブラケットパターンのみで判定し、ドット区切りフォールバックは使用しない。
+        /// これにより Statistics.XXX, Tutorials.XXX 等のバニラキーがModと誤認されるのを防ぐ。
+        /// </summary>
+        private static string ExtractModIdStrict(string key)
+        {
+            foreach (var pattern in ModIdPatterns)
+            {
+                var match = pattern.Match(key);
+                if (match.Success)
+                {
+                    return SanitizeModId(match.Groups[1].Value);
                 }
             }
 
