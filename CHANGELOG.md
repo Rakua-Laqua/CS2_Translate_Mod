@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## v1.1.3 (2026-02-21)
+
+### バグ修正: 自身の注入MemorySourceが他Modの抽出を妨害する問題の修正
+- Phase 1 で自身が注入したMemorySource（2988エントリ、全翻訳ファイルの合算）をスキップするロジックを追加
+  - このソースが `ExtendedTooltip` と誤判定され、C2VM等のキーが吸収されていた
+  - C2VMのTrafficLightsEnhancementが抽出されなかった原因
+- `LocalizationInjector`
+  - `_allInjectedSources`: 全注入MemorySourceの参照を追跡するListを追加
+  - `IsOurSource()`: ReferenceEqualsで自身注入ソースを判定するpublicメソッドを追加
+- `TranslationExtractor` Phase 1
+  - ReadEntries前に `LocalizationInjector.IsOurSource()` で判定し SELF-INJECT としてスキップ
+  - Phase 1.5 の `uncollected` キーからC2VMが正常に新規Modとして抽出されるように
+
 ## v1.1.2 (2026-02-20)
 
 ### バグ修正: バニラ設定カテゴリがModとして抽出される問題の修正

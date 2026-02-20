@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Colossal;
+using CS2_Translate_Mod.Localization;
 using CS2_Translate_Mod.Models;
 using Colossal.Localization;
 using Game.SceneFlow;
@@ -360,6 +361,17 @@ namespace CS2_Translate_Mod.Extraction
 
                 if (!(sourceObj is IDictionarySource dictSource)) continue;
                 sourceCount++;
+
+                // 自身が注入したMemorySourceをスキップ（全翻訳エントリが混在するため誤判定の原因になる）
+                if (LocalizationInjector.IsOurSource(sourceObj))
+                {
+                    skippedSelf++;
+                    if (Mod.ModSetting?.EnableDebugLog == true)
+                    {
+                        Mod.Log.Info($"[Extraction]   Source #{sourceCount}: SELF-INJECT - {sourceObj.GetType().Name} (locale={locale})");
+                    }
+                    continue;
+                }
 
                 var srcTypeName = sourceObj.GetType().FullName;
                 var asmName = sourceObj.GetType().Assembly.GetName().Name;

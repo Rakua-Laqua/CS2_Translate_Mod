@@ -18,6 +18,9 @@ namespace CS2_Translate_Mod.Localization
         private static readonly Dictionary<string, MemorySource> _registeredSources
             = new Dictionary<string, MemorySource>();
 
+        /// <summary>このModが注入した全MemorySourceの参照リスト（抽出時のスキップ判定用）</summary>
+        private static readonly List<MemorySource> _allInjectedSources = new List<MemorySource>();
+
         /// <summary>
         /// 翻訳辞書をゲームのローカライゼーションシステムに注入する。
         /// 同一ロケールIDに対して再注入する場合、新しい MemorySource を作成して AddSource する。
@@ -49,6 +52,7 @@ namespace CS2_Translate_Mod.Localization
                 var source = new MemorySource(translations);
                 localizationManager.AddSource(localeId, source);
                 _registeredSources[localeId] = source;
+                _allInjectedSources.Add(source);
 
                 Mod.Log.Info($"Injected {translations.Count} translations for locale '{localeId}'.");
                 return true;
@@ -94,6 +98,7 @@ namespace CS2_Translate_Mod.Localization
                 var source = new MemorySource(entries);
                 localizationManager.AddSource(localeId, source);
                 _registeredSources[settingsKey] = source;
+                _allInjectedSources.Add(source);
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
                 {
@@ -134,6 +139,24 @@ namespace CS2_Translate_Mod.Localization
                 InvalidateSource(kvp.Value);
             }
             _registeredSources.Clear();
+            _allInjectedSources.Clear();
+        }
+
+        /// <summary>
+        /// 指定のソースオブジェクトがこのModが注入したものかどうかを判定する。
+        /// TranslationExtractor の Phase 1 で自身の注入ソースをスキップするために使用。
+        /// </summary>
+        /// <param name="source">判定対象のソースオブジェクト</param>
+        /// <returns>このModが注入したソースの場合 true</returns>
+        public static bool IsOurSource(object source)
+        {
+            if (source == null) return false;
+            for (int i = 0; i < _allInjectedSources.Count; i++)
+            {
+                if (ReferenceEquals(source, _allInjectedSources[i]))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>
