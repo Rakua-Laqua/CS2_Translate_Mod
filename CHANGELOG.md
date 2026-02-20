@@ -1,5 +1,29 @@
 # CHANGELOG.md
 
+## v1.1.0 (2026-02-20)
+
+### 機能改善: 翻訳抽出ロジックの大幅強化
+- `IdentifyModFromSource` をアセンブリ優先方式に変更
+  - Modアセンブリ由来のソースは無条件でMod扱い（旧: キー分析最優先でVanillaPrefixesに誤除外されるケースあり）
+  - ゲームアセンブリの汎用ソース型（MemorySource等）はキー分析でMod判定する新ロジックを追加
+- Phase 1.5 補完抽出（`SupplementFromActiveDictionary`）を新設
+  - Phase 1 で漏れたModキーを activeDictionary から補完
+  - 既存Modグループとの正規化名マッチングで統合 or 新規グループ作成
+- `ModIdPatterns[]` 複数パターン対応
+  - 旧: 単一正規表現 → 新: 3パターン順次試行
+  - `YY_TREE_CONTROLLER[radius]` 等のアンダースコア区切りパターンを捕捉可能に
+- ソースコンテキスト別キー分析の導入
+  - Modソース用（VanillaFilter無し）、汎用ソース用（Filter有り）、ゲームソース用の3種類に分岐
+
+### ログ改善
+- `ReadEntries` 失敗時に常にWarnログ出力（旧: EnableDebugLog有効時のみ）
+- 各ソースの型名・アセンブリ名・ロケール・エントリ数を常時記録
+- Phase 1/1.5 の統計サマリー（vanilla/empty/self/readErrorの内訳）出力
+
+### その他
+- サンプル翻訳JSON (`_sample_Anarchy.json`) を削除
+- 抽出済み翻訳ファイルを `Translations.zip` に整理
+
 ## v1.0.1 (2026-02-20)
 
 ### セキュリティ修正

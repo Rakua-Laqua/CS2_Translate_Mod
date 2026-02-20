@@ -21,22 +21,32 @@ namespace CS2_Translate_Mod.Extraction
     /// 抽出方式:
     ///   Phase 1 (推奨): m_UserSources からソースごとに抽出し、ソースの型情報でMod別にグループ化。
     ///                    IDictionarySource.ReadEntries() で正しい文字列値を取得できる。
+    ///   Phase 1.5 (補完): activeDictionary から Phase 1 で漏れたModキーを補完抽出。
     ///   Phase 2 (フォールバック): activeDictionary の m_Dict から全エントリを取得し、キーパターンでグルーピング。
     /// </summary>
     public static class TranslationExtractor
     {
         /// <summary>
-        /// エントリキーからMod識別子を推定するための正規表現パターン。
-        /// 例: "Options.SECTION[Anarchy.Anarchy.AnarchyMod]" → "Anarchy"
+        /// エントリキーからMod識別子を推定するための正規表現パターン群。
+        /// 複数のパターンを順に試し、最初にマッチしたものを採用する。
         /// </summary>
-        private static readonly Regex ModIdPattern = new Regex(
-            @"\[([A-Za-z0-9_]+)[\.\[]",
-            RegexOptions.Compiled);
+        private static readonly Regex[] ModIdPatterns = new[]
+        {
+            // パターン1: ブラケット内のドット付きnamespace → "Options.SECTION[Anarchy.Anarchy.AnarchyMod]" → "Anarchy"
+            new Regex(@"\[([A-Za-z0-9_]+)[\.\[]", RegexOptions.Compiled),
+            // パターン2: ブラケット内のアンダースコア区切り → "YY_TREE_CONTROLLER[radius]" → "YY"（後でマージされる）
+            new Regex(@"^([A-Za-z0-9]+(?:_[A-Za-z0-9]+)+)\[", RegexOptions.Compiled),
+            // パターン3: ドット区切りの非標準プレフィックス → "ExtendedTooltip.SomeKey" → "ExtendedTooltip"
+            // (IdentifyModFromKeysEnhanced 内で別途処理)
+        };
 
         /// <summary>
-        /// バニラ（ゲーム本体）のキープレフィックス。
-        /// フォールバック時のバニラ判定に使用。
-        /// 注意: StartsWith で判定するため HashSet ではなく string[] を使用。
+        /// Phase 2 (辞書ベースフォールバック) 専用: バニラキー判定用プレフィックス。
+        /// Phase 1 (ソースベース) では使用しない（ソースのアセンブリ情報で判定するため）。
+        /// 
+        /// 重要: ここにあるプレフィックスは "ゲーム本体が登録するキー" のみ。
+        /// Modが標準カテゴリ名(Zone., SubServices. 等)を使っている場合でも、
+        /// Phase 1 ではアセンブリ情報で正しくMod由来と判定される。
         /// </summary>
         private static readonly string[] VanillaPrefixes = new[]
         {
@@ -56,7 +66,7 @@ namespace CS2_Translate_Mod.Extraction
             "BadInput.", "BadUserInput.", "Budget.", "Content.", "DefaultTool.",
             "DuplicateEntry.", "EditorSettings.", "EditorTutorials.",
             "EconomyPanel.", "GameListScreen.", "Gamepad.", "GameplaySettings.",
-            "General.", "GeneralSettings.", "Paradox.",
+            "General.", "GeneralSettings.", "Paradox.", "Toolbar.",
         };
 
         /// <summary>
@@ -75,7 +85,7 @@ namespace CS2_Translate_Mod.Extraction
             "Simulation", "Water", "About", "Achievements", "Content",
             "General", "Paradox", "AnimationCurve", "AudioSettings",
             "BadInput", "BadUserInput", "Budget", "DefaultTool",
-            "DuplicateEntry", "GameListScreen", "Gamepad",
+            "DuplicateEntry", "GameListScreen", "Gamepad", "Toolbar",
         };
 
         /// <summary>翻訳JSONファイルの最大サイズ (50 MB)</summary>
@@ -96,6 +106,16 @@ namespace CS2_Translate_Mod.Extraction
             "Newtonsoft.", "Burst.", "Unity,",
         };
 
+        /// <summary>
+        /// ゲームアセンブリの汎用ソース型名（MemorySource等）。
+        /// これらの型はゲームアセンブリ由来だが、Modがラッパーとして使用することがある。
+        /// キー分析でMod由来かどうかを判定する必要がある。
+        /// </summary>
+        private static readonly HashSet<string> GenericSourceTypeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "MemorySource", "LocalMemorySource", "FileSource",
+        };
+
         // ────────────────────────────────────────────────────────────────
         //  メイン抽出エントリポイント
         // ────────────────────────────────────────────────────────────────
@@ -103,7 +123,8 @@ namespace CS2_Translate_Mod.Extraction
         /// <summary>
         /// 現在のゲームのローカライゼーションからMod別にキーを抽出する。
         /// Phase 1: m_UserSources からソースベースで抽出（推奨）。
-        /// Phase 2: m_Dict からフォールバック抽出。
+        /// Phase 1.5: activeDictionary から Phase 1 で漏れたModキーを補完。
+        /// Phase 2 (フォールバック): Phase 1 + 1.5 が0件の場合、辞書ベースで全抽出。
         /// </summary>
         public static ExtractionResult ExtractAll(string outputDirectory, string sourceLocaleId = "en-US")
         {
@@ -132,6 +153,25 @@ namespace CS2_Translate_Mod.Extraction
             catch (Exception ex)
             {
                 Mod.Log.Warn($"[Extraction] Source-based extraction failed: {ex.Message}");
+            }
+
+            // ── Phase 1.5: activeDictionary からの補完抽出 ──
+            // Phase 1 で見つかったModグループに含まれないキーを activeDictionary から拾う。
+            // MemorySource 等で登録されたエントリや、Phase 1 でキー分析に失敗した分を救済。
+            if (modGroups != null && modGroups.Count > 0)
+            {
+                try
+                {
+                    var supplementary = SupplementFromActiveDictionary(localizationManager, modGroups, sourceLocaleId);
+                    if (supplementary > 0)
+                    {
+                        Mod.Log.Info($"[Extraction] Phase 1.5: supplemented {supplementary} additional entries/mods from activeDictionary.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Mod.Log.Warn($"[Extraction] Phase 1.5 supplementary extraction failed: {ex.Message}");
+                }
             }
 
             // ── Phase 2: フォールバック（辞書ベース） ──
@@ -234,16 +274,15 @@ namespace CS2_Translate_Mod.Extraction
             }
 
             // ── ステップ1: 全ソースを解析してロケール別に収集 ──
-            // キー: modName, 値: ロケール→エントリ辞書のマッピング
             var modLocaleEntries = new Dictionary<string, Dictionary<string, Dictionary<string, string>>>(
                 StringComparer.OrdinalIgnoreCase);
-            // 各modが持つキーの全集合（ロケール横断）
             var modAllKeys = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
             int sourceCount = 0;
             int skippedVanilla = 0;
             int skippedEmpty = 0;
             int skippedSelf = 0;
+            int skippedReadError = 0;
 
             foreach (var item in sources)
             {
@@ -255,6 +294,9 @@ namespace CS2_Translate_Mod.Extraction
 
                 if (!(sourceObj is IDictionarySource dictSource)) continue;
                 sourceCount++;
+
+                var srcTypeName = sourceObj.GetType().FullName;
+                var asmName = sourceObj.GetType().Assembly.GetName().Name;
 
                 // ソースからエントリを読み取り
                 Dictionary<string, string> sourceEntries;
@@ -274,23 +316,33 @@ namespace CS2_Translate_Mod.Extraction
                 }
                 catch (Exception ex)
                 {
-                    if (Mod.ModSetting?.EnableDebugLog == true)
-                        Mod.Log.Warn($"[Extraction] Skipped source (ReadEntries failed): {ex.Message}");
+                    // ReadEntries 失敗はサイレントスキップしない — 常にログ出力
+                    skippedReadError++;
+                    Mod.Log.Warn($"[Extraction] ReadEntries FAILED: {srcTypeName} (asm={asmName}, locale={locale}): {ex.Message}");
                     continue;
                 }
 
                 if (sourceEntries.Count == 0)
                 {
                     skippedEmpty++;
+                    if (Mod.ModSetting?.EnableDebugLog == true)
+                    {
+                        Mod.Log.Info($"[Extraction]   Source #{sourceCount}: EMPTY - {srcTypeName} (asm={asmName}, locale={locale})");
+                    }
                     continue;
                 }
 
-                // Mod名の特定
+                // ── Mod名の特定（改善版） ──
                 var modName = IdentifyModFromSource(sourceObj, sourceEntries);
 
                 if (string.IsNullOrEmpty(modName))
                 {
                     skippedVanilla++;
+                    if (Mod.ModSetting?.EnableDebugLog == true)
+                    {
+                        var sampleKeys = string.Join(", ", sourceEntries.Keys.Take(3));
+                        Mod.Log.Info($"[Extraction]   Source #{sourceCount}: VANILLA - {srcTypeName} (asm={asmName}, locale={locale}, {sourceEntries.Count} entries, sample=[{sampleKeys}])");
+                    }
                     continue;
                 }
 
@@ -321,17 +373,14 @@ namespace CS2_Translate_Mod.Extraction
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
                 {
-                    var srcTypeName = sourceObj.GetType().FullName;
-                    var asmName = sourceObj.GetType().Assembly.GetName().Name;
                     Mod.Log.Info($"[Extraction]   Source #{sourceCount}: {srcTypeName} (asm={asmName}, locale={locale}) → Mod={modName} ({sourceEntries.Count} entries)");
                 }
             }
 
             Mod.Log.Info($"[Extraction] Phase 1 scan: {sourceCount} sources, {modLocaleEntries.Count} mods found. " +
-                $"(Skipped: {skippedVanilla} vanilla, {skippedEmpty} empty, {skippedSelf} self)");
+                $"(Skipped: {skippedVanilla} vanilla, {skippedEmpty} empty, {skippedSelf} self, {skippedReadError} readError)");
 
             // ── ステップ2: ロケール優先順位で結合 ──
-            // 優先順位: en-US > en-* > その他（中国語含む）
             int totalEntries = 0;
 
             foreach (var mod in modLocaleEntries)
@@ -340,7 +389,6 @@ namespace CS2_Translate_Mod.Extraction
                 var locales = mod.Value;
                 var merged = new Dictionary<string, string>();
 
-                // ロケールを優先順位順にソート
                 var sortedLocales = locales.Keys.OrderBy(loc => GetLocalePriority(loc)).ToList();
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
@@ -349,7 +397,6 @@ namespace CS2_Translate_Mod.Extraction
                     Mod.Log.Info($"[Extraction]   Mod={modName}: locales=[{localeList}]");
                 }
 
-                // 高優先度のロケールから順にマージ（先に入った値が優先）
                 foreach (var locale in sortedLocales)
                 {
                     foreach (var kvp in locales[locale])
@@ -371,8 +418,6 @@ namespace CS2_Translate_Mod.Extraction
             Mod.Log.Info($"[Extraction] Source-based (locale-merged): {modGroups.Count} mods, {totalEntries} entries.");
 
             // ── ステップ3: 類似名のModグループを統合 ──
-            // 名前正規化で同一になるグループを統合する（アンダースコア/大小文字の違い等）
-            // 例: "BetterBulldozer" と "Better_Bulldozer" → 正規化名一致で統合
             modGroups = MergeSimilarModGroups(modGroups);
 
             Mod.Log.Info($"[Extraction] Source-based final: {modGroups.Count} mods (after merge).");
@@ -469,24 +514,28 @@ namespace CS2_Translate_Mod.Extraction
         /// <summary>
         /// ソースの型情報とエントリキーからMod名を特定する。
         /// 
-        /// 判定優先順位:
-        ///   1. キーパターンから推定（最も一貫性がある。同じキーなら同じMod名になる）
-        ///   2. ソース型のアセンブリ名がMod由来 → 名前空間先頭セグメント or アセンブリ名
-        ///   3. どちらにも該当しない → null（スキップ）
+        /// 判定優先順位（改善版: アセンブリ優先）:
+        ///   1. ソース型のアセンブリがMod由来 → アセンブリ/名前空間からMod名を確定
+        ///      （キー内容に関係なく、Modアセンブリからのソースは全てそのModのもの）
+        ///   2. ゲームアセンブリの汎用ソース型（MemorySource等）→ キー分析でMod判定
+        ///   3. ゲームアセンブリの非汎用型で、キー分析でMod発見 → Mod由来
+        ///   4. いずれにも該当しない → null（バニラとしてスキップ）
         /// </summary>
         private static string IdentifyModFromSource(object source, Dictionary<string, string> entries)
         {
-            // 1. キーパターンから推定（最優先 — 同じキーセットなら同じ名前になるため一貫性が高い）
-            var keyBasedName = IdentifyModFromKeys(entries);
-            if (!string.IsNullOrEmpty(keyBasedName))
-                return keyBasedName;
-
-            // 2. ソース型のアセンブリ/名前空間から推定（キーが標準カテゴリのみの場合のフォールバック）
             var sourceType = source.GetType();
             var assemblyName = sourceType.Assembly.GetName().Name;
+            var srcTypeName = sourceType.Name; // 短い型名（MemorySource等）
 
+            // ── 1. Modアセンブリ由来のソース → 無条件でMod ──
             if (!IsGameAssembly(assemblyName))
             {
+                // キー分析も併用: キーからより具体的なMod名が取れる場合はそちらを優先
+                var keyBasedName = IdentifyModFromKeysForModSource(entries);
+                if (!string.IsNullOrEmpty(keyBasedName))
+                    return keyBasedName;
+
+                // フォールバック: 名前空間/アセンブリ名から
                 var ns = sourceType.Namespace;
                 if (!string.IsNullOrEmpty(ns))
                 {
@@ -498,8 +547,20 @@ namespace CS2_Translate_Mod.Extraction
                 return SanitizeModId(assemblyName);
             }
 
-            // 3. どちらにも該当しない → バニラとしてスキップ
-            return null;
+            // ── 2. ゲームアセンブリの汎用ソース型（MemorySource等） ──
+            // Modが MemorySource 等のゲーム提供クラスを使ってキーを登録するケース
+            if (GenericSourceTypeNames.Contains(srcTypeName))
+            {
+                var keyBasedName = IdentifyModFromKeysForGenericSource(entries);
+                return keyBasedName; // null ならバニラ扱い
+            }
+
+            // ── 3. ゲームアセンブリの通常型 → キー分析でMod判定を試みる ──
+            // ゲーム本体の型だが、キーにMod固有パターンがあればMod由来
+            {
+                var keyBasedName = IdentifyModFromKeysForGameSource(entries);
+                return keyBasedName; // null ならバニラ扱い
+            }
         }
 
         /// <summary>
@@ -522,36 +583,67 @@ namespace CS2_Translate_Mod.Extraction
             return false;
         }
 
+        // ────────────────────────────────────────────────────────────────
+        //  キー分析ヘルパー（ソースコンテキスト別に3種類）
+        // ────────────────────────────────────────────────────────────────
+
         /// <summary>
-        /// エントリのキーパターンからMod名を推定する。
-        /// ブラケット内のnamespace第1セグメントを集計し、最頻出のものを返す。
-        /// バニラキーしかない場合は null を返す。
+        /// Modアセンブリ由来ソースのキーからMod名を推定する。
+        /// VanillaPrefix フィルタは不要（既にMod由来と確定しているため）。
         /// </summary>
-        private static string IdentifyModFromKeys(Dictionary<string, string> entries)
+        private static string IdentifyModFromKeysForModSource(Dictionary<string, string> entries)
+        {
+            return ExtractBestModIdFromKeys(entries, filterVanilla: false);
+        }
+
+        /// <summary>
+        /// ゲームアセンブリの汎用ソース（MemorySource等）のキーからMod名を推定する。
+        /// VanillaPrefix フィルタを使うが、Mod固有パターンを優先。
+        /// </summary>
+        private static string IdentifyModFromKeysForGenericSource(Dictionary<string, string> entries)
+        {
+            return ExtractBestModIdFromKeys(entries, filterVanilla: true);
+        }
+
+        /// <summary>
+        /// ゲームアセンブリの通常型ソースのキーからMod名を推定する。
+        /// VanillaPrefix フィルタを使い、Mod由来のキーが過半数を占める場合のみ返す。
+        /// </summary>
+        private static string IdentifyModFromKeysForGameSource(Dictionary<string, string> entries)
+        {
+            return ExtractBestModIdFromKeys(entries, filterVanilla: true);
+        }
+
+        /// <summary>
+        /// エントリのキーパターンからMod名を推定する（共通実装）。
+        /// ModIdPatterns[] を順に試し、候補を集計して最頻出のものを返す。
+        /// filterVanilla=true の場合、VanillaPrefix に一致するキーをスキップする。
+        /// </summary>
+        private static string ExtractBestModIdFromKeys(Dictionary<string, string> entries, bool filterVanilla)
         {
             var candidates = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            int vanillaCount = 0;
 
             foreach (var key in entries.Keys)
             {
-                // バニラキーをカウント
-                if (IsVanillaKey(key))
-                {
-                    vanillaCount++;
+                if (filterVanilla && IsVanillaKey(key))
                     continue;
-                }
 
                 string modId = null;
 
-                // パターン1: ブラケット内から → "Options.SECTION[Anarchy.Anarchy.AnarchyMod]" → "Anarchy"
-                var match = ModIdPattern.Match(key);
-                if (match.Success)
+                // 複数パターンを順に試す
+                foreach (var pattern in ModIdPatterns)
                 {
-                    modId = match.Groups[1].Value;
+                    var match = pattern.Match(key);
+                    if (match.Success)
+                    {
+                        modId = match.Groups[1].Value;
+                        break;
+                    }
                 }
-                else
+
+                // パターン不一致 → ドット区切りの最初のセグメント（標準カテゴリでなければ）
+                if (string.IsNullOrEmpty(modId))
                 {
-                    // パターン2: ドット区切りの最初のセグメント（標準カテゴリでなければ）
                     var parts = key.Split('.');
                     if (parts.Length >= 2 && !IsStandardCategory(parts[0]))
                     {
@@ -567,11 +659,10 @@ namespace CS2_Translate_Mod.Extraction
                 }
             }
 
-            // バニラキーのみの場合 → バニラとして除外
             if (candidates.Count == 0)
                 return null;
 
-            // 最頻出の候補を返す（O(n) で最大値を取得）
+            // 最頻出の候補を返す
             var bestKey = (string)null;
             var bestCount = 0;
             foreach (var c in candidates)
@@ -583,6 +674,127 @@ namespace CS2_Translate_Mod.Extraction
                 }
             }
             return SanitizeModId(bestKey);
+        }
+
+        // ────────────────────────────────────────────────────────────────
+        //  Phase 1.5: activeDictionary 補完抽出
+        // ────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Phase 1 で抽出した modGroups に含まれないキーを activeDictionary から拾い、
+        /// Mod固有パターンのキーをModグループに追加する。
+        /// 
+        /// 用途:
+        ///   - MemorySource 等で登録されたエントリが Phase 1 でバニラ判定された分の救済
+        ///   - ReadEntries 失敗で Phase 1 から漏れたエントリの補完
+        ///   - 別のメカニズム（I18NEverywhere等）で activeDictionary に直接追加されたキー
+        /// 
+        /// 既に Phase 1 で確保されたキーは追加しない（重複防止）。
+        /// </summary>
+        private static int SupplementFromActiveDictionary(
+            LocalizationManager localizationManager,
+            Dictionary<string, Dictionary<string, string>> modGroups,
+            string sourceLocaleId)
+        {
+            // activeDictionary から全エントリを取得
+            var allEntries = TryGetFromActiveDictionary(localizationManager);
+            if (allEntries == null || allEntries.Count == 0)
+            {
+                if (Mod.ModSetting?.EnableDebugLog == true)
+                    Mod.Log.Info("[Extraction] Phase 1.5: activeDictionary is empty or inaccessible.");
+                return 0;
+            }
+
+            // Phase 1 で既に収集したキーの集合を構築
+            var existingKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in modGroups)
+            {
+                foreach (var key in group.Value.Keys)
+                    existingKeys.Add(key);
+            }
+
+            // activeDictionary のうち、未収集かつバニラでないキーを抽出
+            var uncollected = new Dictionary<string, string>();
+            foreach (var kvp in allEntries)
+            {
+                if (existingKeys.Contains(kvp.Key))
+                    continue;
+                if (IsVanillaKey(kvp.Key))
+                    continue;
+                uncollected[kvp.Key] = kvp.Value;
+            }
+
+            if (uncollected.Count == 0)
+            {
+                if (Mod.ModSetting?.EnableDebugLog == true)
+                    Mod.Log.Info("[Extraction] Phase 1.5: no uncollected mod keys found.");
+                return 0;
+            }
+
+            Mod.Log.Info($"[Extraction] Phase 1.5: {uncollected.Count} uncollected non-vanilla keys in activeDictionary.");
+
+            // キーをMod別にグルーピング
+            var supplementGroups = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var kvp in uncollected)
+            {
+                var modId = ExtractModId(kvp.Key);
+                if (string.IsNullOrEmpty(modId))
+                    continue; // Mod判定不能 → スキップ
+
+                if (modId.Equals("CS2_Translate_Mod", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!supplementGroups.ContainsKey(modId))
+                    supplementGroups[modId] = new Dictionary<string, string>();
+                supplementGroups[modId][kvp.Key] = kvp.Value;
+            }
+
+            // 既存のmodGroupsにマージ
+            int totalSupplemented = 0;
+            foreach (var sg in supplementGroups)
+            {
+                // 正規化名で既存グループを検索
+                var normalizedNew = NormalizeModName(sg.Key);
+                string existingGroupKey = null;
+
+                foreach (var existing in modGroups.Keys)
+                {
+                    if (NormalizeModName(existing).Equals(normalizedNew, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existingGroupKey = existing;
+                        break;
+                    }
+                }
+
+                if (existingGroupKey != null)
+                {
+                    // 既存グループに追加
+                    int added = 0;
+                    foreach (var kvp in sg.Value)
+                    {
+                        if (!modGroups[existingGroupKey].ContainsKey(kvp.Key))
+                        {
+                            modGroups[existingGroupKey][kvp.Key] = kvp.Value;
+                            added++;
+                        }
+                    }
+                    if (added > 0)
+                    {
+                        totalSupplemented += added;
+                        Mod.Log.Info($"[Extraction] Phase 1.5: +{added} entries to existing mod '{existingGroupKey}'");
+                    }
+                }
+                else
+                {
+                    // 新規Modグループとして追加
+                    modGroups[sg.Key] = sg.Value;
+                    totalSupplemented += sg.Value.Count;
+                    Mod.Log.Info($"[Extraction] Phase 1.5: NEW mod '{sg.Key}' with {sg.Value.Count} entries");
+                }
+            }
+
+            return totalSupplemented;
         }
 
         // ────────────────────────────────────────────────────────────────
@@ -1050,14 +1262,18 @@ namespace CS2_Translate_Mod.Extraction
         }
 
         /// <summary>
-        /// エントリキーからMod識別子を推定する（フォールバック用）。
+        /// エントリキーからMod識別子を推定する（フォールバック用・Phase 1.5/Phase 2共用）。
+        /// ModIdPatterns[] を順に試し、最初にマッチしたものを返す。
         /// </summary>
         private static string ExtractModId(string key)
         {
-            var match = ModIdPattern.Match(key);
-            if (match.Success)
+            foreach (var pattern in ModIdPatterns)
             {
-                return SanitizeModId(match.Groups[1].Value);
+                var match = pattern.Match(key);
+                if (match.Success)
+                {
+                    return SanitizeModId(match.Groups[1].Value);
+                }
             }
 
             var parts = key.Split('.');
