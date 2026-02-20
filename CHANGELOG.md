@@ -1,5 +1,13 @@
 # CHANGELOG.md
 
+## v1.1.2 (2026-02-20)
+
+### バグ修正: バニラ設定カテゴリがModとして抽出される問題の修正
+- ブラケット内から抽出したMod IDを `StandardCategories` で検証するロジックを追加
+  - `Options.OPTION[GraphicsSettings.VSync]` → "GraphicsSettings" がバニラと判定されスキップされるように
+  - `ExtractBestModIdFromKeys`, `ExtractModIdStrict`, `ExtractModId` の3箇所で一貫して適用
+- Phase 1.5 で `GraphicsSettings`(32), `InputSettings`(477), `Gamepad`(150) 等約34個のバニラグループが作成されていた問題を解決
+
 ## v1.1.1 (2026-02-20)
 
 ### バグ修正: バニラキーのModファイルへの混入を修正

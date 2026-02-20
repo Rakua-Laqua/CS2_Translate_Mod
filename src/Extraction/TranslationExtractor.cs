@@ -706,7 +706,13 @@ namespace CS2_Translate_Mod.Extraction
                     var match = pattern.Match(key);
                     if (match.Success)
                     {
-                        modId = match.Groups[1].Value;
+                        var candidate = match.Groups[1].Value;
+                        // ブラケット内から抽出したIDがバニラカテゴリ名ならスキップ
+                        // 例: Options.OPTION[GraphicsSettings.VSync] → "GraphicsSettings" はバニラ
+                        if (!IsStandardCategory(candidate))
+                        {
+                            modId = candidate;
+                        }
                         break;
                     }
                 }
@@ -1344,7 +1350,11 @@ namespace CS2_Translate_Mod.Extraction
                 var match = pattern.Match(key);
                 if (match.Success)
                 {
-                    return SanitizeModId(match.Groups[1].Value);
+                    var candidate = match.Groups[1].Value;
+                    // ブラケット内から抽出したIDがバニラカテゴリ名ならスキップ
+                    if (!IsStandardCategory(candidate))
+                        return SanitizeModId(candidate);
+                    continue;
                 }
             }
 
@@ -1373,7 +1383,12 @@ namespace CS2_Translate_Mod.Extraction
                 var match = pattern.Match(key);
                 if (match.Success)
                 {
-                    return SanitizeModId(match.Groups[1].Value);
+                    var candidate = match.Groups[1].Value;
+                    // ブラケット内から抽出したIDがバニラカテゴリ名ならスキップ
+                    // 例: Options.OPTION[GraphicsSettings.VSync] → "GraphicsSettings" はバニラ
+                    if (IsStandardCategory(candidate))
+                        return null;
+                    return SanitizeModId(candidate);
                 }
             }
 
