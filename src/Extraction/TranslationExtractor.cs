@@ -341,8 +341,8 @@ namespace CS2_Translate_Mod.Extraction
             Mod.Log.Info($"[Extraction] Source-based (locale-merged): {modGroups.Count} mods, {totalEntries} entries.");
 
             // ── ステップ3: 類似名のModグループを統合 ──
-            // 同じキーを持つが異なるMod名で分かれたグループを統合する
-            // 例: "BetterBulldozer" と "Better_Bulldozer" → キー重複があれば統合
+            // 名前正規化で同一になるグループを統合する（アンダースコア/大小文字の違い等）
+            // 例: "BetterBulldozer" と "Better_Bulldozer" → 正規化名一致で統合
             modGroups = MergeSimilarModGroups(modGroups);
 
             Mod.Log.Info($"[Extraction] Source-based final: {modGroups.Count} mods (after merge).");
@@ -352,8 +352,7 @@ namespace CS2_Translate_Mod.Extraction
 
         /// <summary>
         /// 類似名のModグループを統合する。
-        /// 名前が正規化すると同一になるグループ（アンダースコア/大小文字の違い）、
-        /// またはキーの重複率が高いグループを統合する。
+        /// 名前が正規化すると同一になるグループ（アンダースコア/大小文字の違い）を統合する。
         /// 統合先はエントリ数が最も多いグループ。
         /// </summary>
         private static Dictionary<string, Dictionary<string, string>> MergeSimilarModGroups(
@@ -404,9 +403,6 @@ namespace CS2_Translate_Mod.Extraction
                 result[mainName] = merged;
             }
 
-            // さらに: キー重複チェックで名前が異なるグループも統合
-            result = MergeByKeyOverlap(result);
-
             return result;
         }
 
@@ -418,72 +414,6 @@ namespace CS2_Translate_Mod.Extraction
         {
             if (string.IsNullOrEmpty(name)) return "";
             return name.Replace("_", "").Replace("-", "").ToLowerInvariant();
-        }
-
-        /// <summary>
-        /// キーの重複率が高いグループを統合する。
-        /// あるグループのキーの50%以上が別グループにも存在する場合、統合する。
-        /// </summary>
-        private static Dictionary<string, Dictionary<string, string>> MergeByKeyOverlap(
-            Dictionary<string, Dictionary<string, string>> modGroups)
-        {
-            var names = modGroups.Keys.ToList();
-            var mergeTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // srcName → targetName
-
-            for (int i = 0; i < names.Count; i++)
-            {
-                if (mergeTarget.ContainsKey(names[i])) continue;
-
-                for (int j = i + 1; j < names.Count; j++)
-                {
-                    if (mergeTarget.ContainsKey(names[j])) continue;
-
-                    var keysA = modGroups[names[i]].Keys;
-                    var keysB = new HashSet<string>(modGroups[names[j]].Keys);
-
-                    int overlap = keysA.Count(k => keysB.Contains(k));
-                    int smaller = Math.Min(keysA.Count, keysB.Count);
-
-                    if (smaller > 0 && (double)overlap / smaller >= 0.5)
-                    {
-                        // 大きい方に吸収
-                        if (modGroups[names[i]].Count >= modGroups[names[j]].Count)
-                        {
-                            mergeTarget[names[j]] = names[i];
-                        }
-                        else
-                        {
-                            mergeTarget[names[i]] = names[j];
-                        }
-                    }
-                }
-            }
-
-            if (mergeTarget.Count == 0) return modGroups;
-
-            var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var name in names)
-            {
-                if (mergeTarget.ContainsKey(name)) continue; // 吸収される側はスキップ
-
-                var merged = new Dictionary<string, string>(modGroups[name]);
-
-                // このグループに吸収されるグループを統合
-                foreach (var src in mergeTarget.Where(m => m.Value.Equals(name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    foreach (var kvp in modGroups[src.Key])
-                    {
-                        if (!merged.ContainsKey(kvp.Key))
-                            merged[kvp.Key] = kvp.Value;
-                    }
-                    Mod.Log.Info($"[Extraction] Merged '{src.Key}' into '{name}' (key overlap detected)");
-                }
-
-                result[name] = merged;
-            }
-
-            return result;
         }
 
         /// <summary>
