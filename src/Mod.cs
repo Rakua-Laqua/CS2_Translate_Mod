@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using Colossal.Logging;
 using Game;
 using Game.Modding;
@@ -27,13 +28,18 @@ namespace CS2_Translate_Mod
         public static Setting ModSetting { get; private set; }
 
         /// <summary>翻訳注入中のコールバック抑制フラグ</summary>
-        public static bool SuppressLocaleCallback { get; set; } = false;
+        public static volatile bool SuppressLocaleCallback = false;
 
         /// <summary>デバウンス用: 最後の locale 変更時刻 (UTC ticks)</summary>
-        public static long LastLocaleChangeTicks { get; private set; } = 0;
+        private static long _lastLocaleChangeTicks = 0;
+        public static long LastLocaleChangeTicks
+        {
+            get => Interlocked.Read(ref _lastLocaleChangeTicks);
+            private set => Interlocked.Exchange(ref _lastLocaleChangeTicks, value);
+        }
 
         /// <summary>デバウンス用: 未処理の locale 変更があるか</summary>
-        public static bool LocaleChangePending { get; set; } = false;
+        public static volatile bool LocaleChangePending = false;
 
         public void OnLoad(UpdateSystem updateSystem)
         {

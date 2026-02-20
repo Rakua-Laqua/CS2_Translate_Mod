@@ -7,7 +7,7 @@
     <AssemblyName>CS2_Translate_Mod</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Rakua-Laqua</Authors>
     <Description>Cities: Skylines 2 - Mod Japanese Translation Loader &amp; Extractor</Description>
     <!-- ソースコードは src/ フォルダに配置 -->

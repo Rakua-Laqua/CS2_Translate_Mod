@@ -1,4 +1,5 @@
 using CS2_Translate_Mod.Extraction;
+using CS2_Translate_Mod.Models;
 using Game;
 
 namespace CS2_Translate_Mod.Systems
@@ -10,7 +11,7 @@ namespace CS2_Translate_Mod.Systems
     public partial class TranslationExtractorSystem : GameSystemBase
     {
         /// <summary>抽出リクエストフラグ</summary>
-        private static bool _extractionRequested = false;
+        private static volatile bool _extractionRequested = false;
 
         /// <summary>最後の抽出結果</summary>
         public static ExtractionResult LastResult { get; private set; }

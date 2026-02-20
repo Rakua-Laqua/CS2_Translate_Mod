@@ -1,0 +1,20 @@
+updated_at: 2026-02-20
+version: v1.0.1
+phase: 保守・改善
+
+completed:
+  - v1.0.0 初回リリース
+  - v1.0.1 コードレビュー指摘反映（セキュリティ・バグ・パフォーマンス・アーキテクチャ修正）
+
+in_progress: []
+
+next:
+  - TranslationExtractor の責務分割（God Class 解消）
+  - リフレクション依存部分のアダプタ層分離
+  - MergeByKeyOverlap の推移的閉包対応
+
+known_bugs: []
+
+notes:
+  - GPT 5.3 codex と Claude 4.6 opus の4回のレビュー結果を統合して修正を実施
+  - MemorySource の RemoveSource API がゲーム側に存在しないため、リフレクションで内部辞書をクリアする方式で対応

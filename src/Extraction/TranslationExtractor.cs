@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using Colossal;
 using CS2_Translate_Mod.Models;
@@ -34,8 +36,9 @@ namespace CS2_Translate_Mod.Extraction
         /// <summary>
         /// バニラ（ゲーム本体）のキープレフィックス。
         /// フォールバック時のバニラ判定に使用。
+        /// 注意: StartsWith で判定するため HashSet ではなく string[] を使用。
         /// </summary>
-        private static readonly HashSet<string> VanillaPrefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly string[] VanillaPrefixes = new[]
         {
             "Assets.", "Camera.", "Chirper.", "Cinema.", "Climate.",
             "Common.", "Editor.", "Economy.", "Education.", "Electricity.",
@@ -55,6 +58,31 @@ namespace CS2_Translate_Mod.Extraction
             "EconomyPanel.", "GameListScreen.", "Gamepad.", "GameplaySettings.",
             "General.", "GeneralSettings.", "Paradox.",
         };
+
+        /// <summary>
+        /// 標準カテゴリ名のセット（static readonly で1回だけ確保）。
+        /// IsStandardCategory で使用。
+        /// </summary>
+        private static readonly HashSet<string> StandardCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Options", "Tooltip", "Description", "SubServices", "Services",
+            "Menu", "Assets", "Properties", "Notification", "Chirper",
+            "Editor", "Panel", "SelectedInfoPanel", "ToolOptions", "Tools",
+            "Transport", "Tutorial", "UI", "Zone", "Common", "Loading",
+            "MainMenu", "Camera", "Cinema", "Climate", "Economy",
+            "Education", "Electricity", "Fire", "Garbage", "Healthcare",
+            "Infoviews", "Input", "Map", "Media", "PhotoMode", "Policies",
+            "Simulation", "Water", "About", "Achievements", "Content",
+            "General", "Paradox", "AnimationCurve", "AudioSettings",
+            "BadInput", "BadUserInput", "Budget", "DefaultTool",
+            "DuplicateEntry", "GameListScreen", "Gamepad",
+        };
+
+        /// <summary>翻訳JSONファイルの最大サイズ (50 MB)</summary>
+        private const long MaxTranslationFileSizeBytes = 50L * 1024 * 1024;
+
+        /// <summary>翻訳ファイル探索の最大ファイル数</summary>
+        private const int MaxTranslationFileCount = 500;
 
         /// <summary>
         /// ゲーム/エンジンのアセンブリプレフィックス（ソースベース抽出時のバニラ判定用）。
@@ -244,8 +272,10 @@ namespace CS2_Translate_Mod.Extraction
                         }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    if (Mod.ModSetting?.EnableDebugLog == true)
+                        Mod.Log.Warn($"[Extraction] Skipped source (ReadEntries failed): {ex.Message}");
                     continue;
                 }
 
@@ -408,12 +438,18 @@ namespace CS2_Translate_Mod.Extraction
 
         /// <summary>
         /// Mod名を正規化する（統合比較用）。
-        /// アンダースコア除去、小文字化して比較できるようにする。
+        /// アンダースコア/ハイフン除去、小文字化して比較できるようにする。
         /// </summary>
         private static string NormalizeModName(string name)
         {
             if (string.IsNullOrEmpty(name)) return "";
-            return name.Replace("_", "").Replace("-", "").ToLowerInvariant();
+            var sb = new StringBuilder(name.Length);
+            foreach (var c in name)
+            {
+                if (c != '_' && c != '-')
+                    sb.Append(char.ToLowerInvariant(c));
+            }
+            return sb.ToString();
         }
 
         /// <summary>
@@ -424,9 +460,8 @@ namespace CS2_Translate_Mod.Extraction
         {
             if (string.IsNullOrEmpty(locale)) return 100;
 
-            var lower = locale.ToLowerInvariant();
-            if (lower == "en-us") return 0;
-            if (lower.StartsWith("en")) return 1;
+            if (string.Equals(locale, "en-US", StringComparison.OrdinalIgnoreCase)) return 0;
+            if (locale.StartsWith("en", StringComparison.OrdinalIgnoreCase)) return 1;
             // 中国語・韓国語等は低優先（翻訳元としては英語が望ましい）
             return 50;
         }
@@ -536,9 +571,18 @@ namespace CS2_Translate_Mod.Extraction
             if (candidates.Count == 0)
                 return null;
 
-            // 最頻出の候補を返す
-            var best = candidates.OrderByDescending(c => c.Value).First();
-            return SanitizeModId(best.Key);
+            // 最頻出の候補を返す（O(n) で最大値を取得）
+            var bestKey = (string)null;
+            var bestCount = 0;
+            foreach (var c in candidates)
+            {
+                if (c.Value > bestCount)
+                {
+                    bestCount = c.Value;
+                    bestKey = c.Key;
+                }
+            }
+            return SanitizeModId(bestKey);
         }
 
         // ────────────────────────────────────────────────────────────────
@@ -797,7 +841,11 @@ namespace CS2_Translate_Mod.Extraction
                             Mod.Log.Info($"[Extraction] Deep scan: '{fld.Name}' yielded {found.Count} entries.");
                         }
                     }
-                    catch { /* skip */ }
+                    catch (Exception ex)
+                    {
+                        if (Mod.ModSetting?.EnableDebugLog == true)
+                            Mod.Log.Warn($"[Extraction] Deep scan skipped field '{fld.Name}': {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -870,11 +918,17 @@ namespace CS2_Translate_Mod.Extraction
 
         /// <summary>
         /// 任意のオブジェクトから Dictionary&lt;string, string&gt; 相当のエントリを取得する。
+        /// visited で循環参照・重複走査を防止する。
         /// </summary>
-        private static Dictionary<string, string> ExtractEntriesFromObject(object obj, int maxDepth = 2, int currentDepth = 0)
+        private static Dictionary<string, string> ExtractEntriesFromObject(
+            object obj, int maxDepth = 2, int currentDepth = 0, HashSet<object> visited = null)
         {
             var entries = new Dictionary<string, string>();
             if (obj == null || currentDepth > maxDepth) return entries;
+
+            // 循環参照防止: 訪問済みオブジェクトを追跡
+            if (visited == null) visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            if (!visited.Add(obj)) return entries;
 
             if (obj is IDictionary<string, string> dict)
             {
@@ -904,7 +958,11 @@ namespace CS2_Translate_Mod.Extraction
                     }
                     if (entries.Count > 0) return entries;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    if (Mod.ModSetting?.EnableDebugLog == true)
+                        Mod.Log.Warn($"[Extraction] IDictionarySource.ReadEntries failed: {ex.Message}");
+                }
             }
 
             // 内部フィールドを再帰的に掘る
@@ -920,13 +978,17 @@ namespace CS2_Translate_Mod.Extraction
                     var innerType = inner.GetType();
                     if (innerType.IsPrimitive || inner is string || inner is Delegate) continue;
 
-                    var found = ExtractEntriesFromObject(inner, maxDepth, currentDepth + 1);
+                    var found = ExtractEntriesFromObject(inner, maxDepth, currentDepth + 1, visited);
                     if (found.Count > entries.Count)
                     {
                         entries = found;
                     }
                 }
-                catch { /* skip */ }
+                catch (Exception ex)
+                {
+                    if (Mod.ModSetting?.EnableDebugLog == true)
+                        Mod.Log.Warn($"[Extraction] Skipped field '{f.Name}': {ex.Message}");
+                }
             }
 
             return entries;
@@ -1013,38 +1075,34 @@ namespace CS2_Translate_Mod.Extraction
 
         /// <summary>
         /// 標準カテゴリ名かどうかを判定する（フォールバック用）。
+        /// StandardCategories は static readonly で1回だけ確保される。
         /// </summary>
         private static bool IsStandardCategory(string category)
         {
-            var standardCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "Options", "Tooltip", "Description", "SubServices", "Services",
-                "Menu", "Assets", "Properties", "Notification", "Chirper",
-                "Editor", "Panel", "SelectedInfoPanel", "ToolOptions", "Tools",
-                "Transport", "Tutorial", "UI", "Zone", "Common", "Loading",
-                "MainMenu", "Camera", "Cinema", "Climate", "Economy",
-                "Education", "Electricity", "Fire", "Garbage", "Healthcare",
-                "Infoviews", "Input", "Map", "Media", "PhotoMode", "Policies",
-                "Simulation", "Water", "About", "Achievements", "Content",
-                "General", "Paradox", "AnimationCurve", "AudioSettings",
-                "BadInput", "BadUserInput", "Budget", "DefaultTool",
-                "DuplicateEntry", "GameListScreen", "Gamepad",
-            };
-
-            return standardCategories.Contains(category);
+            return StandardCategories.Contains(category);
         }
 
         /// <summary>
         /// Mod識別子をファイル名に使える安全な形式に変換する。
+        /// パストラバーサル防止: 先頭・末尾のドットを除去し、".." を拒否する。
         /// </summary>
         private static string SanitizeModId(string modId)
         {
             if (string.IsNullOrEmpty(modId)) return null;
 
             var invalid = Path.GetInvalidFileNameChars();
-            var sanitized = new string(modId.Where(c => !invalid.Contains(c)).ToArray());
+            var sb = new StringBuilder(modId.Length);
+            foreach (var c in modId)
+            {
+                if (Array.IndexOf(invalid, c) < 0)
+                    sb.Append(c);
+            }
 
-            return string.IsNullOrEmpty(sanitized) ? null : sanitized;
+            var sanitized = sb.ToString().Trim('.');
+            if (string.IsNullOrEmpty(sanitized)) return null;
+            if (sanitized == "." || sanitized == "..") return null;
+
+            return sanitized;
         }
 
         // ────────────────────────────────────────────────────────────────
@@ -1083,13 +1141,14 @@ namespace CS2_Translate_Mod.Extraction
                 if (!File.Exists(checkPath)) continue;
                 try
                 {
-                    var existingJson = File.ReadAllText(checkPath);
+                    var existingJson = File.ReadAllText(checkPath, System.Text.Encoding.UTF8);
                     var existingFile = JsonConvert.DeserializeObject<TranslationFile>(existingJson);
                     if (existingFile?.Entries != null)
                     {
                         foreach (var entry in existingFile.Entries)
                         {
-                            if (!string.IsNullOrEmpty(entry.Value.Translation) &&
+                            if (entry.Value != null &&
+                                !string.IsNullOrEmpty(entry.Value.Translation) &&
                                 !existingTranslations.ContainsKey(entry.Key))
                             {
                                 existingTranslations[entry.Key] = entry.Value.Translation;
@@ -1104,7 +1163,15 @@ namespace CS2_Translate_Mod.Extraction
                 }
                 catch (Exception ex)
                 {
-                    Mod.Log.Warn($"Failed to read existing file: {checkPath} - {ex.Message}");
+                    Mod.Log.Error($"Existing translation file is corrupted, creating backup: {checkPath} - {ex.Message}");
+                    try
+                    {
+                        File.Copy(checkPath, checkPath + ".bak", overwrite: true);
+                    }
+                    catch (Exception backupEx)
+                    {
+                        Mod.Log.Warn($"Failed to create backup: {backupEx.Message}");
+                    }
                 }
             }
 
@@ -1113,38 +1180,49 @@ namespace CS2_Translate_Mod.Extraction
             {
                 ModId = modId,
                 ModName = modId,
-                Version = DateTime.Now.ToString("yyyy-MM-dd"),
+                Version = DateTime.UtcNow.ToString("yyyy-MM-dd"),
                 Entries = new Dictionary<string, TranslationEntry>()
             };
 
             foreach (var key in entries.Keys.OrderBy(k => k))
             {
+                string existingTranslation;
                 translationFile.Entries[key] = new TranslationEntry
                 {
                     Original = entries[key],
-                    Translation = existingTranslations.ContainsKey(key)
-                        ? existingTranslations[key]
+                    Translation = existingTranslations.TryGetValue(key, out existingTranslation)
+                        ? existingTranslation
                         : ""
                 };
             }
 
+            // パストラバーサル防止: 最終パスが出力ディレクトリ配下であることを検証
+            var resolvedPath = Path.GetFullPath(filePath);
+            var resolvedOutputDir = Path.GetFullPath(outputDirectory);
+            if (!resolvedPath.StartsWith(resolvedOutputDir, StringComparison.OrdinalIgnoreCase))
+            {
+                Mod.Log.Error($"Path traversal detected! Resolved path '{resolvedPath}' is outside output directory '{resolvedOutputDir}'. Skipping.");
+                return null;
+            }
+
             var json = JsonConvert.SerializeObject(translationFile, Formatting.Indented);
-            File.WriteAllText(filePath, json);
+            File.WriteAllText(filePath, json, System.Text.Encoding.UTF8);
 
             return filePath;
         }
     }
 
     /// <summary>
-    /// 抽出結果のサマリー。
+    /// 参照等価性でオブジェクトを比較するコンパレーター（net472 用）。
+    /// 循環参照防止の HashSet で使用する。
     /// </summary>
-    public class ExtractionResult
+    internal sealed class ReferenceEqualityComparer : IEqualityComparer<object>
     {
-        public int TotalMods { get; set; }
-        public int TotalEntries { get; set; }
-        public List<string> ExtractedFiles { get; set; } = new List<string>();
-        public List<string> FailedMods { get; set; } = new List<string>();
-        public string ErrorMessage { get; set; }
-        public bool Success => string.IsNullOrEmpty(ErrorMessage) && ExtractedFiles.Count > 0;
+        public static readonly ReferenceEqualityComparer Instance = new ReferenceEqualityComparer();
+
+        private ReferenceEqualityComparer() { }
+
+        public new bool Equals(object x, object y) => ReferenceEquals(x, y);
+        public int GetHashCode(object obj) => RuntimeHelpers.GetHashCode(obj);
     }
 }

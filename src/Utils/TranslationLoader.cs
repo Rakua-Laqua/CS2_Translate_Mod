@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using CS2_Translate_Mod.Models;
 using Newtonsoft.Json;
 
@@ -12,6 +13,11 @@ namespace CS2_Translate_Mod.Utils
     /// </summary>
     public static class TranslationLoader
     {
+        /// <summary>翻訳ファイルの最大サイズ (50 MB)</summary>
+        private const long MaxFileSizeBytes = 50L * 1024 * 1024;
+
+        /// <summary>探索対象の最大ファイル数</summary>
+        private const int MaxFileCount = 500;
         /// <summary>
         /// 指定ディレクトリ内のすべての翻訳JSONファイルを読み込む。
         /// サブディレクトリも再帰的に探索する。
@@ -29,6 +35,15 @@ namespace CS2_Translate_Mod.Utils
             }
 
             var jsonFiles = Directory.GetFiles(translationsDirectory, "*.json", SearchOption.AllDirectories);
+
+            // 決定的な読み込み順序を確保（ファイル名でソート）
+            Array.Sort(jsonFiles, StringComparer.OrdinalIgnoreCase);
+
+            if (jsonFiles.Length > MaxFileCount)
+            {
+                Mod.Log.Warn($"Too many translation files ({jsonFiles.Length}). Processing only first {MaxFileCount}.");
+                jsonFiles = jsonFiles.Take(MaxFileCount).ToArray();
+            }
 
             Mod.Log.Info($"Found {jsonFiles.Length} translation file(s) in: {translationsDirectory}");
 
@@ -74,7 +89,15 @@ namespace CS2_Translate_Mod.Utils
                 return null;
             }
 
-            var json = File.ReadAllText(filePath);
+            // ファイルサイズ制限
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > MaxFileSizeBytes)
+            {
+                Mod.Log.Warn($"Skipping oversized file ({fileInfo.Length} bytes): {filePath}");
+                return null;
+            }
+
+            var json = File.ReadAllText(filePath, Encoding.UTF8);
             var translationFile = JsonConvert.DeserializeObject<TranslationFile>(json);
 
             if (translationFile == null)
@@ -109,11 +132,15 @@ namespace CS2_Translate_Mod.Utils
 
                 foreach (var entry in file.Entries)
                 {
-                    // 未翻訳（空文字列）のエントリはスキップ
-                    if (string.IsNullOrEmpty(entry.Value.Translation))
+                    // 未翻訳（空文字列）のエントリ、またはnull値のエントリはスキップ
+                    if (entry.Value == null || string.IsNullOrEmpty(entry.Value.Translation))
                         continue;
 
-                    if (dictionary.ContainsKey(entry.Key))
+                    if (string.IsNullOrEmpty(entry.Key))
+                        continue;
+
+                    string existingValue;
+                    if (dictionary.TryGetValue(entry.Key, out existingValue))
                     {
                         overwriteCount++;
                         if (Mod.ModSetting?.EnableDebugLog == true)

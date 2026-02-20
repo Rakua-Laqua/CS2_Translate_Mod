@@ -26,7 +26,8 @@ CS2_Translate_Mod/
 │   ├── Mod.cs                            # エントリポイント (IMod 実装)
 │   ├── Setting.cs                        # ゲーム内設定
 │   ├── Models/
-│   │   └── TranslationData.cs            # 翻訳JSON データモデル
+│   │   ├── TranslationData.cs            # 翻訳JSON データモデル
+│   │   └── ExtractionResult.cs           # 抽出結果サマリーモデル
 │   ├── Utils/
 │   │   └── TranslationLoader.cs          # JSONファイル読み込み・パース
 │   ├── Localization/

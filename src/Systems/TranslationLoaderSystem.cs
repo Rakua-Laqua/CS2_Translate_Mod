@@ -17,7 +17,7 @@ namespace CS2_Translate_Mod.Systems
         private bool _loaded = false;
 
         /// <summary>手動再読み込みリクエストフラグ</summary>
-        private static bool _reloadRequested = false;
+        private static volatile bool _reloadRequested = false;
 
         /// <summary>読み込んだ翻訳エントリの総数</summary>
         private int _totalEntries = 0;

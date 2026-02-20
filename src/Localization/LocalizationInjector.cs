@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Colossal.Localization;
 using Game.SceneFlow;
 
@@ -6,18 +7,21 @@ namespace CS2_Translate_Mod.Localization
 {
     /// <summary>
     /// ゲームのローカライゼーションシステムに翻訳を注入するクラス。
-    /// MemorySource を使用して、指定ロケールに翻訳エントリを追加する。
+    /// MemorySource を再利用し、蓄積を防止する。
     /// </summary>
     public static class LocalizationInjector
     {
         /// <summary>日本語ロケールID</summary>
         public const string JapaneseLocaleId = "ja-JP";
 
-        /// <summary>現在注入中のソースを保持（再読み込み時にクリア可能）</summary>
-        private static readonly List<MemorySource> _activeSources = new List<MemorySource>();
+        /// <summary>ロケールIDごとに登録済みの MemorySource を保持（再利用で蓄積防止）</summary>
+        private static readonly Dictionary<string, MemorySource> _registeredSources
+            = new Dictionary<string, MemorySource>();
 
         /// <summary>
         /// 翻訳辞書をゲームのローカライゼーションシステムに注入する。
+        /// 同一ロケールIDに対して再注入する場合、新しい MemorySource を作成して AddSource する。
+        /// 過去の MemorySource は中身を空にして実質的に無効化する。
         /// </summary>
         /// <param name="localeId">ロケールID（例: "ja-JP"）</param>
         /// <param name="translations">キー → 訳文 の辞書</param>
@@ -39,9 +43,12 @@ namespace CS2_Translate_Mod.Localization
 
             try
             {
+                // 既存のソースがあれば内容を空にして実質無効化（ゲーム側かRemoveSourceを提供しないため）
+                InvalidateExistingSource(localeId);
+
                 var source = new MemorySource(translations);
                 localizationManager.AddSource(localeId, source);
-                _activeSources.Add(source);
+                _registeredSources[localeId] = source;
 
                 Mod.Log.Info($"Injected {translations.Count} translations for locale '{localeId}'.");
                 return true;
@@ -66,6 +73,7 @@ namespace CS2_Translate_Mod.Localization
         /// <summary>
         /// 既存の辞書をゲームのローカライゼーションシステムに直接注入する。
         /// 設定画面のローカライズなど、小規模な注入に使用。
+        /// キーは "settings:{localeId}" で管理し、繰り返し注入でも蓄積しない。
         /// </summary>
         /// <param name="localeId">ロケールID</param>
         /// <param name="entries">キー → 訳文 の辞書</param>
@@ -80,9 +88,12 @@ namespace CS2_Translate_Mod.Localization
 
             try
             {
+                var settingsKey = $"settings:{localeId}";
+                InvalidateExistingSource(settingsKey);
+
                 var source = new MemorySource(entries);
                 localizationManager.AddSource(localeId, source);
-                _activeSources.Add(source);
+                _registeredSources[settingsKey] = source;
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
                 {
@@ -113,13 +124,57 @@ namespace CS2_Translate_Mod.Localization
         }
 
         /// <summary>
-        /// アクティブソースのリストをクリアする。
-        /// 注意: ゲーム側のLocalizationManagerからは削除されない。
-        /// 再注入で上書きする運用を想定。
+        /// アクティブソースの追跡をクリアする。
+        /// 登録済みソースの辞書を空にして実質的に無効化し、追跡リストをクリアする。
         /// </summary>
         public static void ClearTrackedSources()
         {
-            _activeSources.Clear();
+            foreach (var kvp in _registeredSources)
+            {
+                InvalidateSource(kvp.Value);
+            }
+            _registeredSources.Clear();
+        }
+
+        /// <summary>
+        /// 指定キーの既存ソースがあれば、内部辞書を空にして実質的に無効化する。
+        /// </summary>
+        private static void InvalidateExistingSource(string key)
+        {
+            if (_registeredSources.TryGetValue(key, out var existingSource))
+            {
+                InvalidateSource(existingSource);
+                _registeredSources.Remove(key);
+            }
+        }
+
+        /// <summary>
+        /// MemorySource の内部辞書をリフレクションで空にし、ゲーム側の検索でヒットしないようにする。
+        /// </summary>
+        private static void InvalidateSource(MemorySource source)
+        {
+            if (source == null) return;
+            try
+            {
+                // MemorySource の内部辞書をリフレクションでクリア
+                var fields = source.GetType().GetFields(
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance);
+                foreach (var field in fields)
+                {
+                    if (typeof(System.Collections.IDictionary).IsAssignableFrom(field.FieldType))
+                    {
+                        var dict = field.GetValue(source) as System.Collections.IDictionary;
+                        dict?.Clear();
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                if (Mod.ModSetting?.EnableDebugLog == true)
+                    Mod.Log.Warn($"Failed to invalidate MemorySource: {ex.Message}");
+            }
         }
     }
 }
