@@ -1,0 +1,58 @@
+<Publish>
+  <!--
+    Paradox Mods 公開設定ファイル
+    初回公開後、ModId にPDXから付与されたIDが自動書き込まれます。
+    手動で編集しないでください。
+  -->
+  <ModId Value="" />
+  <DisplayName Value="Mod Translation Loader &amp; Extractor (Japanese)" />
+  <ShortDescription Value="Automatically loads Japanese translation JSON files for other mods and extracts localization keys per mod." />
+  <LongDescription>Mod Translation Loader &amp; Extractor for Cities: Skylines 2.
+
+This mod provides:
+- **Automatic JSON Translation Loading** — Place .json translation files in the Translations folder and they are auto-detected and loaded.
+- **Japanese Locale Injection** — Translations are injected into the game's localization system (ja-JP).
+- **Multi-Mod Support** — Load translations for multiple mods simultaneously.
+- **Per-Mod Key Extraction** — Automatically extract localization keys from installed mods, grouped by mod.
+- **Existing Translation Merge** — When extracting, existing translations are preserved and merged.
+- **In-Game Reload** — Reload translations from the in-game settings panel.
+- **Debug Logging** — View detailed logs of translation loading and extraction.
+
+## How to Use
+
+1. Press "Extract Translation Keys" in the mod settings to generate per-mod JSON templates.
+2. Fill in the "translation" fields in the generated JSON files.
+3. Press "Reload Translations" or restart the game to apply.
+
+## Translation JSON Format
+
+```json
+{
+  "modId": "mod_Anarchy",
+  "modName": "Anarchy",
+  "version": "2026-02-20",
+  "entries": {
+    "Options.SECTION[Anarchy.Anarchy.AnarchyMod]": {
+      "original": "Anarchy",
+      "translation": "アナーキー"
+    }
+  }
+}
+```
+
+Source code: https://github.com/Rakua-Laqua/CS2_Translate_Mod
+License: MIT</LongDescription>
+  <Thumbnail Value="Properties\Thumbnail.png" />
+  <Screenshot Value="" />
+  <Tag Value="Code Mod" />
+  <ForumLink Value="" />
+  <ModVersion Value="1.1.3" />
+  <GameVersion Value="*" />
+  <Dependency Value="" />
+  <ChangeLog>v1.1.3: Fix self-injection MemorySource interfering with other mod extraction.
+v1.1.2: Fix vanilla settings categories being extracted as mods.
+v1.1.1: Fix vanilla keys leaking into mod files.
+v1.1.0: Major extraction logic improvements, per-mod grouping, Phase 1.5 supplementary extraction.
+v1.0.1: Initial release.</ChangeLog>
+  <ExternalLink Type="github" Url="https://github.com/Rakua-Laqua/CS2_Translate_Mod.git" />
+</Publish>

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="#1e1e2e" />
+  
+  <!-- Outer Ring / Gear (representing Mod/System) -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#89b4fa" stroke-width="24" stroke-dasharray="40 20" />
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#313244" stroke-width="12" />
+
+  <!-- Left Side: English / Source (A) -->
+  <g transform="translate(140, 256)">
+    <rect x="-60" y="-70" width="120" height="140" rx="16" fill="#cba6f7" />
+    <text x="0" y="20" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#11111b" text-anchor="middle">A</text>
+  </g>
+
+  <!-- Right Side: Japanese / Translation (あ) -->
+  <g transform="translate(372, 256)">
+    <rect x="-60" y="-70" width="120" height="140" rx="16" fill="#f38ba8" />
+    <text x="0" y="25" font-family="Arial, sans-serif" font-size="70" font-weight="bold" fill="#11111b" text-anchor="middle">あ</text>
+  </g>
+
+  <!-- Center: Translation Arrows -->
+  <g transform="translate(256, 256)">
+    <!-- Top Arrow (Right) -->
+    <path d="M -30 -20 L 10 -20 L 10 -40 L 40 -10 L 10 20 L 10 0 L -30 0 Z" fill="#a6e3a1" />
+    <!-- Bottom Arrow (Left) -->
+    <path d="M 30 20 L -10 20 L -10 40 L -40 10 L -10 -20 L -10 0 L 30 0 Z" fill="#89dceb" />
+  </g>
+
+  <!-- Bottom: JSON / Code Brackets -->
+  <g transform="translate(256, 420)">
+    <text x="0" y="0" font-family="monospace" font-size="60" font-weight="bold" fill="#f9e2af" text-anchor="middle">{ }</text>
+  </g>
+  
+  <!-- Top: CS2 Text -->
+  <g transform="translate(256, 110)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="48" font-weight="900" fill="#cdd6f4" text-anchor="middle">CS2</text>
+  </g>
+</svg>

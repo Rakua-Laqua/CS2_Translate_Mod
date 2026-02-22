@@ -34,3 +34,6 @@ Desktop.ini
 
 # Local configuration (game path)
 Directory.Build.props
+
+# Private / review notes
+review/
