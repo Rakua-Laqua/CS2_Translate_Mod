@@ -1,5 +1,7 @@
 # CS2_Translate_Mod
 
+> **[English README available here](README_EN.md)**
+
 Cities: Skylines 2 の Mod を翻訳するための翻訳ローダー＆抽出 Mod です。  
 翻訳 JSON ファイルを `Translations` フォルダに配置するだけで、他の Mod の UI を任意の言語に翻訳できます。  
 デフォルトでは日本語 (`ja-JP`) への注入を行いますが、仕組み上はどのロケールにも対応可能です。  
