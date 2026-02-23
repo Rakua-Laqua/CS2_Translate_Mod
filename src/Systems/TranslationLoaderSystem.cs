@@ -8,8 +8,7 @@ using Game.SceneFlow;
 namespace CS2_Translate_Mod.Systems
 {
     /// <summary>
-    /// 翻訳ファイルの読み込みとローカライゼーション注入を管理するECSシステム。
-    /// ゲーム起動時に自動実行され、翻訳JSONファイルをロードして日本語ロケールに注入する。
+    /// 翻訳ファイルの読み込みとローカライゼーション注入を担当する ECS システム。
     /// </summary>
     public partial class TranslationLoaderSystem : GameSystemBase
     {
@@ -25,11 +24,24 @@ namespace CS2_Translate_Mod.Systems
         /// <summary>読み込んだ翻訳ファイルの総数</summary>
         private int _totalFiles = 0;
 
-        /// <summary>デバウンス遅延 (秒)</summary>
+        /// <summary>ロケール変更イベントのデバウンス秒数</summary>
         private const float DebounceSeconds = 3.0f;
 
+        #region Optimization flags (Step1 & Step2) — false にすれば無効化される
+        /// <summary>[Step1] true: イベント世代番号で処理済みイベントの再処理をスキップ</summary>
+        private static readonly bool EnableEventGenerationFilter = true;
+        /// <summary>[Step2] true: 辞書フィンガープリントが同一なら注入をスキップ</summary>
+        private static readonly bool EnableFingerprintSkip = true;
+        #endregion
+
+        /// <summary>[Step1] 最後に処理したイベント世代番号</summary>
+        private long _lastProcessedGeneration = 0;
+
+        /// <summary>[Step2] 最後に注入した辞書のフィンガープリント</summary>
+        private string _lastDictionaryFingerprint = null;
+
         /// <summary>
-        /// 外部から再読み込みをリクエストする（設定画面のボタン等から呼ばれる）。
+        /// 外部から再読み込みをリクエストする（設定画面のボタンなど）。
         /// </summary>
         public static void RequestReload()
         {
@@ -45,30 +57,54 @@ namespace CS2_Translate_Mod.Systems
 
         protected override void OnUpdate()
         {
-            // 初回ロード
             if (!_loaded)
             {
-                LoadAndInjectTranslations();
+                if (Mod.ModSetting?.EnableDebugLog == true)
+                {
+                    Mod.Log.Info($"[ReloadDiag] Initial update start (pending={Mod.LocaleChangePending}, lastChangeTicks={Mod.LastLocaleChangeTicks}, callbackCount={Mod.LocaleCallbackCount}, eventGen={Mod.EventGeneration}).");
+                }
+
+                LoadAndInjectTranslations("initial_on_update");
                 _loaded = true;
+                _lastProcessedGeneration = Mod.EventGeneration;
             }
 
-            // 手動再読み込みリクエスト（即時処理）
             if (_reloadRequested)
             {
                 _reloadRequested = false;
-                LoadAndInjectTranslations();
+
+                if (Mod.ModSetting?.EnableDebugLog == true)
+                {
+                    Mod.Log.Info($"[ReloadDiag] Manual reload accepted (pending={Mod.LocaleChangePending}, callbackCount={Mod.LocaleCallbackCount}, eventGen={Mod.EventGeneration}).");
+                }
+
+                LoadAndInjectTranslations("manual_request");
+                _lastProcessedGeneration = Mod.EventGeneration;
             }
 
-            // Locale 変更のデバウンス処理
-            // 最後のイベントから DebounceSeconds 秒経過してから1回だけ処理する
             if (Mod.LocaleChangePending)
             {
                 var elapsed = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Mod.LastLocaleChangeTicks);
                 if (elapsed.TotalSeconds >= DebounceSeconds)
                 {
+                    var lastChangeTicks = Mod.LastLocaleChangeTicks;
+                    var lastChangeUtc = lastChangeTicks > 0
+                        ? new DateTime(lastChangeTicks, DateTimeKind.Utc).ToString("O")
+                        : "<unset>";
+
                     Mod.LocaleChangePending = false;
-                    Mod.Log.Info($"Locale change debounced — reloading translations (waited {elapsed.TotalSeconds:F1}s).");
-                    LoadAndInjectTranslations();
+
+                    var currentGen = Mod.EventGeneration;
+                    if (EnableEventGenerationFilter && currentGen <= _lastProcessedGeneration)
+                    {
+                        Mod.Log.Info($"[Optimization/Step1] Debounced reload skipped — no new events (eventGen={currentGen}, lastProcessed={_lastProcessedGeneration}, waited {elapsed.TotalSeconds:F1}s, callbackCount={Mod.LocaleCallbackCount}).");
+                    }
+                    else
+                    {
+                        Mod.Log.Info($"Locale change debounced - reloading translations (waited {elapsed.TotalSeconds:F1}s, lastChangeUtc={lastChangeUtc}, eventGen={currentGen}, lastProcessed={_lastProcessedGeneration}, callbackCount={Mod.LocaleCallbackCount}).");
+                        LoadAndInjectTranslations("locale_changed_debounced");
+                        _lastProcessedGeneration = currentGen;
+                    }
                 }
             }
         }
@@ -76,18 +112,22 @@ namespace CS2_Translate_Mod.Systems
         /// <summary>
         /// 翻訳ファイルを読み込み、ゲームのローカライゼーションシステムに注入する。
         /// </summary>
-        private void LoadAndInjectTranslations()
+        private void LoadAndInjectTranslations(string trigger)
         {
-            // 設定で無効化されている場合はスキップ
             if (Mod.ModSetting != null && !Mod.ModSetting.EnableTranslation)
             {
-                Mod.Log.Info("Translation loading is disabled in settings.");
+                Mod.Log.Info($"Translation loading is disabled in settings (trigger={trigger}).");
+
+                if (Mod.ModSetting?.EnableDebugLog == true)
+                {
+                    Mod.Log.Info($"[ReloadDiag] Skip details: pending={Mod.LocaleChangePending}, callbackCount={Mod.LocaleCallbackCount}, trackedSources={LocalizationInjector.GetTrackedSourceCount()}, registeredSources={LocalizationInjector.GetRegisteredSourceCount()}.");
+                }
+
                 return;
             }
 
-            Mod.Log.Info("--- Loading translations ---");
+            Mod.Log.Info($"--- Loading translations (trigger={trigger}) ---");
 
-            // 1. 翻訳ファイルを読み込む
             var translationFiles = TranslationLoader.LoadAll(Mod.TranslationsPath);
 
             if (translationFiles.Count == 0)
@@ -99,7 +139,6 @@ namespace CS2_Translate_Mod.Systems
 
             _totalFiles = translationFiles.Count;
 
-            // 2. 辞書を構築
             var dictionary = TranslationLoader.BuildDictionary(translationFiles);
             _totalEntries = dictionary.Count;
 
@@ -109,7 +148,14 @@ namespace CS2_Translate_Mod.Systems
                 return;
             }
 
-            // 3. 日本語ロケールに注入（コールバック抑制付き）
+            // [Optimization Step2] フィンガープリント比較で内容未変更なら注入スキップ
+            string fingerprint = EnableFingerprintSkip ? ComputeDictionaryFingerprint(dictionary) : null;
+            if (EnableFingerprintSkip && trigger != "manual_request" && fingerprint == _lastDictionaryFingerprint)
+            {
+                Mod.Log.Info($"[Optimization/Step2] Dictionary unchanged (fingerprint={fingerprint}, trigger={trigger}), skipping injection.");
+                return;
+            }
+
             Mod.SuppressLocaleCallback = true;
             bool success;
             try
@@ -123,10 +169,15 @@ namespace CS2_Translate_Mod.Systems
 
             if (success)
             {
-                Mod.Log.Info($"--- Translation loading complete: " +
+                Mod.Log.Info($"--- Translation loading complete (trigger={trigger}): " +
                     $"{_totalFiles} file(s), {_totalEntries} entries ---");
 
-                // Mod自体の設定画面ローカライズも注入（コールバック抑制付き）
+                // フィンガープリントを成功時のみ更新
+                if (fingerprint != null)
+                {
+                    _lastDictionaryFingerprint = fingerprint;
+                }
+
                 Mod.SuppressLocaleCallback = true;
                 try
                 {
@@ -139,19 +190,36 @@ namespace CS2_Translate_Mod.Systems
             }
             else
             {
-                Mod.Log.Error("--- Translation loading failed ---");
+                Mod.Log.Error($"--- Translation loading failed (trigger={trigger}) ---");
             }
 
-            // デバッグログ: 現在のロケール情報
             if (Mod.ModSetting?.EnableDebugLog == true)
             {
                 var activeLocale = LocalizationInjector.GetActiveLocaleId();
-                Mod.Log.Info($"Active locale: {activeLocale}");
+                Mod.Log.Info($"[ReloadDiag] Post-load: trigger={trigger}, activeLocale={activeLocale}, callbackCount={Mod.LocaleCallbackCount}, eventGen={Mod.EventGeneration}, fingerprint={_lastDictionaryFingerprint ?? "<none>"}, trackedSources={LocalizationInjector.GetTrackedSourceCount()}, registeredSources={LocalizationInjector.GetRegisteredSourceCount()}.");
+            }
+        }
+
+        /// <summary>
+        /// [Optimization Step2] 辞書のフィンガープリントを計算する（反復順序非依存）。
+        /// </summary>
+        private static string ComputeDictionaryFingerprint(Dictionary<string, string> dictionary)
+        {
+            unchecked
+            {
+                long hash = 17;
+                foreach (var kvp in dictionary)
+                {
+                    // XOR で反復順序に依存しないハッシュを生成
+                    hash ^= ((long)(kvp.Key?.GetHashCode() ?? 0) * 397) ^ (kvp.Value?.GetHashCode() ?? 0);
+                }
+                return $"{dictionary.Count}:{hash:X16}";
             }
         }
 
         protected override void OnDestroy()
         {
+            _lastDictionaryFingerprint = null;
             LocalizationInjector.ClearTrackedSources();
             base.OnDestroy();
             Mod.Log.Info("TranslationLoaderSystem destroyed.");

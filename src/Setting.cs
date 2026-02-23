@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Colossal.IO.AssetDatabase;
 using Game.Modding;
@@ -19,13 +20,34 @@ namespace CS2_Translate_Mod
 
         public Setting(IMod mod) : base(mod) { }
 
+        private bool _enableTranslation = true;
+        private bool _enableDebugLog = false;
+
         /// <summary>翻訳ロードの有効/無効切り替え</summary>
         [SettingsUISection(kSection, kMainGroup)]
-        public bool EnableTranslation { get; set; } = true;
+        public bool EnableTranslation
+        {
+            get => _enableTranslation;
+            set
+            {
+                if (_enableTranslation == value) return;
+                _enableTranslation = value;
+                SaveSettingsSafe(nameof(EnableTranslation));
+            }
+        }
 
         /// <summary>デバッグログの有効/無効切り替え</summary>
         [SettingsUISection(kSection, kMainGroup)]
-        public bool EnableDebugLog { get; set; } = false;
+        public bool EnableDebugLog
+        {
+            get => _enableDebugLog;
+            set
+            {
+                if (_enableDebugLog == value) return;
+                _enableDebugLog = value;
+                SaveSettingsSafe(nameof(EnableDebugLog));
+            }
+        }
 
         /// <summary>翻訳の再読み込みボタン</summary>
         [SettingsUISection(kSection, kMainGroup)]
@@ -53,8 +75,24 @@ namespace CS2_Translate_Mod
 
         public override void SetDefaults()
         {
-            EnableTranslation = true;
-            EnableDebugLog = false;
+            _enableTranslation = true;
+            _enableDebugLog = false;
+        }
+
+        private void SaveSettingsSafe(string reason)
+        {
+            try
+            {
+                ApplyAndSave();
+                if (_enableDebugLog)
+                {
+                    Mod.Log.Info($"Settings saved ({reason}).");
+                }
+            }
+            catch (Exception ex)
+            {
+                Mod.Log.Warn($"Failed to save settings ({reason}): {ex.Message}");
+            }
         }
 
         /// <summary>

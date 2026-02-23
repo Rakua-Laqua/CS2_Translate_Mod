@@ -56,10 +56,19 @@ namespace CS2_Translate_Mod.Systems
                     $"{LastResult.TotalMods} mod(s), " +
                     $"{LastResult.TotalEntries} entries, " +
                     $"{LastResult.ExtractedFiles.Count} file(s) ---");
+
+                if (LastResult.FailedMods.Count > 0)
+                {
+                    Mod.Log.Warn($"[Extraction] Success=true but failedMods={LastResult.FailedMods.Count}. First failed mod: {LastResult.FailedMods[0]}");
+                }
             }
             else
             {
                 Mod.Log.Error($"--- Extraction failed: {LastResult.ErrorMessage} ---");
+                if (LastResult != null)
+                {
+                    Mod.Log.Error($"[Extraction] Failure detail: failedMods={LastResult.FailedMods.Count}, extractedFiles={LastResult.ExtractedFiles.Count}.");
+                }
             }
         }
 

@@ -281,6 +281,10 @@ namespace CS2_Translate_Mod.Extraction
                 try
                 {
                     var filePath = WriteModTranslationFile(outputDirectory, group.Key, group.Value);
+                    if (string.IsNullOrEmpty(filePath))
+                    {
+                        Mod.Log.Warn($"[Extraction] Write returned empty path for mod '{group.Key}'. This mod may be treated as extracted unless failure handling catches it.");
+                    }
                     result.ExtractedFiles.Add(filePath);
                     result.TotalEntries += group.Value.Count;
 
@@ -298,6 +302,7 @@ namespace CS2_Translate_Mod.Extraction
 
             result.TotalMods = modGroups.Count;
             Mod.Log.Info($"Extraction complete: {result.TotalMods} mods, {result.TotalEntries} entries, {result.ExtractedFiles.Count} files written.");
+            Mod.Log.Info($"[Extraction] Final status: failedMods={result.FailedMods.Count}, hasErrorMessage={!string.IsNullOrEmpty(result.ErrorMessage)}, success={result.Success}.");
 
             return result;
         }

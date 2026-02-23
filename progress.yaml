@@ -1,4 +1,4 @@
-updated_at: 2026-02-21
+updated_at: 2026-02-23
 version: v1.1.3
 phase: 保守・改善
 
@@ -10,7 +10,8 @@ completed:
   - v1.1.2 ブラケット抽出 ID のStandardCategories検証追加（バニラ設定カテゴリの誤抽出防止）
   - v1.1.3 自身注入MemorySourceのPhase 1スキップ追加（C2VM等のModが他Modに吸収される問題の修正）
 
-in_progress: []
+in_progress:
+  - 冗長リロード削減の検証（Step1: イベント世代番号フィルタ / Step2: 辞書フィンガープリントスキップ）
 
 next:
   - TranslationExtractor の責務分割（God Class 解消）

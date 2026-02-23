@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading;
+using Colossal.IO.AssetDatabase;
 using Colossal.Logging;
 using Game;
 using Game.Modding;
@@ -41,15 +42,31 @@ namespace CS2_Translate_Mod
         /// <summary>デバウンス用: 未処理の locale 変更があるか</summary>
         public static volatile bool LocaleChangePending = false;
 
+        /// <summary>診断用: locale 変更コールバックの累計呼び出し回数</summary>
+        private static long _localeCallbackCount = 0;
+        public static long LocaleCallbackCount => Interlocked.Read(ref _localeCallbackCount);
+
+        /// <summary>[Optimization Step1] イベント世代番号: 非抑制ロケール変更ごとにインクリメント</summary>
+        private static long _eventGeneration = 0;
+        public static long EventGeneration => Interlocked.Read(ref _eventGeneration);
+
+        public static void ResetLocaleChangeState(string reason)
+        {
+            LastLocaleChangeTicks = 0;
+            LocaleChangePending = false;
+            Interlocked.Exchange(ref _localeCallbackCount, 0);
+            Interlocked.Exchange(ref _eventGeneration, 0);
+            Log.Info($"Locale change state reset ({reason}).");
+        }
+
         public void OnLoad(UpdateSystem updateSystem)
         {
             Log.Info("=== CS2_Translate_Mod: Loading ===");
 
             try
             {
-                // Mod ディレクトリの取得
                 // CS2 では Assembly.Location/CodeBase が信頼できないため、
-                // Unity の persistentDataPath を基にパスを構築する
+                // Unity の persistentDataPath を基にパスを構築する。
                 var persistentData = Application.persistentDataPath;
                 Log.Info($"Application.persistentDataPath: '{persistentData}'");
 
@@ -59,19 +76,19 @@ namespace CS2_Translate_Mod
                 Log.Info($"Mod Path: {ModPath}");
                 Log.Info($"Translations Path: {TranslationsPath}");
 
-                // 翻訳ディレクトリが無ければ作成
                 if (!Directory.Exists(TranslationsPath))
                 {
                     Directory.CreateDirectory(TranslationsPath);
                     Log.Info("Created Translations directory.");
                 }
 
-                // Mod 設定の初期化
                 Log.Info("Initializing settings...");
                 ModSetting = new Setting(this);
                 ModSetting.RegisterInOptionsUI();
+                AssetDatabase.global.LoadSettings(nameof(CS2_Translate_Mod), ModSetting, new Setting(this));
+                ResetLocaleChangeState("OnLoad");
                 GameManager.instance.localizationManager.onActiveDictionaryChanged += OnLocaleChanged;
-                Log.Info("Settings registered.");
+                Log.Info($"Settings registered. EnableTranslation={ModSetting.EnableTranslation}, EnableDebugLog={ModSetting.EnableDebugLog}");
 
                 // 設定画面のローカライズを即座に登録
                 SuppressLocaleCallback = true;
@@ -85,7 +102,6 @@ namespace CS2_Translate_Mod
                     SuppressLocaleCallback = false;
                 }
 
-                // 翻訳読み込みシステムを登録
                 Log.Info("Registering systems...");
                 updateSystem.UpdateAt<Systems.TranslationLoaderSystem>(SystemUpdatePhase.MainLoop);
                 updateSystem.UpdateAt<Systems.TranslationExtractorSystem>(SystemUpdatePhase.MainLoop);
@@ -100,17 +116,43 @@ namespace CS2_Translate_Mod
         }
 
         /// <summary>
-        /// ロケール変更時に呼ばれるコールバック。
-        /// ロケール変更後に翻訳を再注入する。
+        /// ロケール辞書変更イベントのコールバック。
+        /// 実処理は TranslationLoaderSystem 側でデバウンス後に行う。
         /// </summary>
         private void OnLocaleChanged()
         {
-            // 翻訳注入中の再帰呼び出しを抑制
-            if (SuppressLocaleCallback) return;
+            var callbackCount = Interlocked.Increment(ref _localeCallbackCount);
+            var nowTicks = DateTime.UtcNow.Ticks;
+            var previousTicks = LastLocaleChangeTicks;
+            var pendingBefore = LocaleChangePending;
+            var debugLogEnabled = ModSetting?.EnableDebugLog == true;
 
-            // デバウンス: タイムスタンプだけ更新し、実際の再読み込みはシステム側で遅延処理
-            LastLocaleChangeTicks = DateTime.UtcNow.Ticks;
+            if (debugLogEnabled)
+            {
+                var elapsedMs = previousTicks > 0
+                    ? (nowTicks - previousTicks) / TimeSpan.TicksPerMillisecond
+                    : -1;
+                var activeLocale = GameManager.instance?.localizationManager?.activeLocaleId ?? "<unknown>";
+                Log.Info($"[LocaleEvent] #{callbackCount} received (suppress={SuppressLocaleCallback}, pendingBefore={pendingBefore}, activeLocale={activeLocale}, msSincePrev={elapsedMs}).");
+            }
+
+            if (SuppressLocaleCallback)
+            {
+                if (debugLogEnabled)
+                {
+                    Log.Info($"[LocaleEvent] #{callbackCount} suppressed.");
+                }
+                return;
+            }
+
+            LastLocaleChangeTicks = nowTicks;
             LocaleChangePending = true;
+            var gen = Interlocked.Increment(ref _eventGeneration);
+
+            if (debugLogEnabled)
+            {
+                Log.Info($"[LocaleEvent] #{callbackCount} marked pending (lastChangeTicks={LastLocaleChangeTicks}, eventGen={gen}).");
+            }
         }
 
         public void OnDispose()
@@ -129,6 +171,9 @@ namespace CS2_Translate_Mod
                     ModSetting.UnregisterInOptionsUI();
                     ModSetting = null;
                 }
+
+                Log.Info($"Locale callback total count: {LocaleCallbackCount}");
+                ResetLocaleChangeState("OnDispose");
             }
             catch (Exception ex)
             {
