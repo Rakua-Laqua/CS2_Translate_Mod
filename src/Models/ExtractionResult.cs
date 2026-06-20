@@ -12,6 +12,6 @@ namespace CS2_Translate_Mod.Models
         public List<string> ExtractedFiles { get; set; } = new List<string>();
         public List<string> FailedMods { get; set; } = new List<string>();
         public string ErrorMessage { get; set; }
-        public bool Success => string.IsNullOrEmpty(ErrorMessage) && ExtractedFiles.Count > 0;
+        public bool Success => string.IsNullOrEmpty(ErrorMessage) && ExtractedFiles.Count > 0 && FailedMods.Count == 0;
     }
 }

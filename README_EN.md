@@ -1,6 +1,6 @@
 # CS2_Translate_Mod
 
-[![Version](https://img.shields.io/badge/version-v1.1.3-blue)]()
+[![Version](https://img.shields.io/badge/version-v1.1.4-blue)]()
 [![.NET](https://img.shields.io/badge/.NET_Framework-4.7.2-purple)]()
 [![License](https://img.shields.io/badge/license-see_LICENSE-green)](LICENSE)
 
@@ -115,8 +115,8 @@ The mod references `Application.persistentDataPath`, so place files at the follo
 
 ```json
 {
-  "modId": "_extracted_mod_Anarchy",
-  "modName": "Extracted from mod_Anarchy",
+  "modId": "Anarchy",
+  "modName": "Anarchy",
   "version": "2026-02-20",
   "entries": {
     "Options.SECTION[Anarchy.Anarchy.AnarchyMod]": {
@@ -191,10 +191,14 @@ Extraction runs in three phases to maximize mod identification accuracy:
 
 ```
 Translations/
-├── _extracted_mod_Anarchy.json         # Anarchy mod translation template
-├── _extracted_mod_FindIt.json          # Find It mod translation template
-├── _extracted_mod_ExtraLib.json        # Extra Lib mod translation template
-└── _extracted_mod__ungrouped.json      # Keys with unidentified mod origin
+├── Anarchy/
+│   └── Anarchy.json                    # Anarchy mod translation template
+├── FindIt/
+│   └── FindIt.json                     # Find It mod translation template
+├── ExtraLib/
+│   └── ExtraLib.json                   # Extra Lib mod translation template
+└── _ungrouped/
+    └── _ungrouped.json                 # Keys with unidentified mod origin
 ```
 
 ### Existing Translation Merge

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CS2_Translate_Mod.Localization;
 using CS2_Translate_Mod.Utils;
 using Game;
@@ -117,6 +118,7 @@ namespace CS2_Translate_Mod.Systems
             if (Mod.ModSetting != null && !Mod.ModSetting.EnableTranslation)
             {
                 Mod.Log.Info($"Translation loading is disabled in settings (trigger={trigger}).");
+                ClearInjectedTranslations(trigger);
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
                 {
@@ -134,6 +136,7 @@ namespace CS2_Translate_Mod.Systems
             {
                 Mod.Log.Info("No translation files found. " +
                     $"Place JSON files in: {Mod.TranslationsPath}");
+                ClearInjectedTranslations(trigger);
                 return;
             }
 
@@ -145,6 +148,7 @@ namespace CS2_Translate_Mod.Systems
             if (dictionary.Count == 0)
             {
                 Mod.Log.Info("No translated entries found in loaded files.");
+                ClearInjectedTranslations(trigger);
                 return;
             }
 
@@ -201,19 +205,62 @@ namespace CS2_Translate_Mod.Systems
         }
 
         /// <summary>
-        /// [Optimization Step2] 辞書のフィンガープリントを計算する（反復順序非依存）。
+        /// 注入済み翻訳をクリアし、設定画面用ローカライズだけ再登録する。
+        /// </summary>
+        private void ClearInjectedTranslations(string trigger)
+        {
+            _totalFiles = 0;
+            _totalEntries = 0;
+            _lastDictionaryFingerprint = null;
+
+            Mod.SuppressLocaleCallback = true;
+            try
+            {
+                LocalizationInjector.ClearTrackedSources();
+                Mod.ModSetting?.RegisterLocalization();
+            }
+            finally
+            {
+                Mod.SuppressLocaleCallback = false;
+            }
+
+            Mod.Log.Info($"Injected translations cleared (trigger={trigger}).");
+        }
+
+        /// <summary>
+        /// [Optimization Step2] 辞書のフィンガープリントを計算する（キー順で決定的）。
         /// </summary>
         private static string ComputeDictionaryFingerprint(Dictionary<string, string> dictionary)
         {
             unchecked
             {
-                long hash = 17;
-                foreach (var kvp in dictionary)
+                ulong hash = 14695981039346656037UL;
+                foreach (var kvp in dictionary.OrderBy(kvp => kvp.Key, StringComparer.Ordinal))
                 {
-                    // XOR で反復順序に依存しないハッシュを生成
-                    hash ^= ((long)(kvp.Key?.GetHashCode() ?? 0) * 397) ^ (kvp.Value?.GetHashCode() ?? 0);
+                    hash = AddFingerprintPart(hash, kvp.Key);
+                    hash = AddFingerprintPart(hash, kvp.Value);
                 }
                 return $"{dictionary.Count}:{hash:X16}";
+            }
+        }
+
+        private static ulong AddFingerprintPart(ulong hash, string value)
+        {
+            unchecked
+            {
+                const ulong prime = 1099511628211UL;
+                if (value != null)
+                {
+                    for (int i = 0; i < value.Length; i++)
+                    {
+                        hash ^= value[i];
+                        hash *= prime;
+                    }
+                }
+
+                hash ^= 0xFFUL;
+                hash *= prime;
+                return hash;
             }
         }
 

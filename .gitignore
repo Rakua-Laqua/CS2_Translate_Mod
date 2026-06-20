@@ -37,3 +37,4 @@ Directory.Build.props
 
 # Private / review notes
 review/
+progress.yaml

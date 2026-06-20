@@ -33,6 +33,7 @@ namespace CS2_Translate_Mod
                 if (_enableTranslation == value) return;
                 _enableTranslation = value;
                 SaveSettingsSafe(nameof(EnableTranslation));
+                Systems.TranslationLoaderSystem.RequestReload();
             }
         }
 

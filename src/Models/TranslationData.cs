@@ -7,9 +7,11 @@ namespace CS2_Translate_Mod.Models
     /// 翻訳JSONファイルのルートオブジェクト。
     /// </summary>
     /// <example>
+    /// Translations/Anarchy/Anarchy.json
+    ///
     /// {
-    ///   "modId": "_extracted_mod_Anarchy",
-    ///   "modName": "Extracted from mod_Anarchy",
+    ///   "modId": "Anarchy",
+    ///   "modName": "Anarchy",
     ///   "version": "2026-02-19",
     ///   "entries": {
     ///     "Options.SECTION[Anarchy.Anarchy.AnarchyMod]": {

@@ -189,6 +189,7 @@ namespace CS2_Translate_Mod.Localization
             {
                 InvalidateSource(existingSource);
                 _registeredSources.Remove(key);
+                _allInjectedSources.Remove(existingSource);
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
                 {

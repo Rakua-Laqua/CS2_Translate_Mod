@@ -111,8 +111,8 @@ Mod は `Application.persistentDataPath` 配下を参照するため、以下の
 
 ```json
 {
-  "modId": "_extracted_mod_Anarchy",
-  "modName": "Extracted from mod_Anarchy",
+  "modId": "Anarchy",
+  "modName": "Anarchy",
   "version": "2026-02-20",
   "entries": {
     "Options.SECTION[Anarchy.Anarchy.AnarchyMod]": {
@@ -187,10 +187,14 @@ Mod は `Application.persistentDataPath` 配下を参照するため、以下の
 
 ```
 Translations/
-├── _extracted_mod_Anarchy.json         # Anarchy Mod の翻訳テンプレート
-├── _extracted_mod_FindIt.json          # Find It Mod の翻訳テンプレート
-├── _extracted_mod_ExtraLib.json        # Extra Lib Mod の翻訳テンプレート
-└── _extracted_mod__ungrouped.json      # Mod識別が不明なキー
+├── Anarchy/
+│   └── Anarchy.json                    # Anarchy Mod の翻訳テンプレート
+├── FindIt/
+│   └── FindIt.json                     # Find It Mod の翻訳テンプレート
+├── ExtraLib/
+│   └── ExtraLib.json                   # Extra Lib Mod の翻訳テンプレート
+└── _ungrouped/
+    └── _ungrouped.json                 # Mod識別が不明なキー
 ```
 
 ### 既訳のマージ

@@ -283,8 +283,11 @@ namespace CS2_Translate_Mod.Extraction
                     var filePath = WriteModTranslationFile(outputDirectory, group.Key, group.Value);
                     if (string.IsNullOrEmpty(filePath))
                     {
-                        Mod.Log.Warn($"[Extraction] Write returned empty path for mod '{group.Key}'. This mod may be treated as extracted unless failure handling catches it.");
+                        Mod.Log.Warn($"[Extraction] Write returned empty path for mod '{group.Key}'. Marking this mod as failed.");
+                        result.FailedMods.Add(group.Key);
+                        continue;
                     }
+
                     result.ExtractedFiles.Add(filePath);
                     result.TotalEntries += group.Value.Count;
 
@@ -348,7 +351,6 @@ namespace CS2_Translate_Mod.Extraction
             // ── ステップ1: 全ソースを解析してロケール別に収集 ──
             var modLocaleEntries = new Dictionary<string, Dictionary<string, Dictionary<string, string>>>(
                 StringComparer.OrdinalIgnoreCase);
-            var modAllKeys = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
             int sourceCount = 0;
             int skippedVanilla = 0;
@@ -447,12 +449,6 @@ namespace CS2_Translate_Mod.Extraction
                 {
                     modLocaleEntries[modName][locale][kvp.Key] = kvp.Value;
                 }
-
-                // キー集合も記録
-                if (!modAllKeys.ContainsKey(modName))
-                    modAllKeys[modName] = new HashSet<string>();
-                foreach (var k in sourceEntries.Keys)
-                    modAllKeys[modName].Add(k);
 
                 if (Mod.ModSetting?.EnableDebugLog == true)
                 {

@@ -28,7 +28,7 @@ This mod provides:
 
 ```json
 {
-  "modId": "mod_Anarchy",
+  "modId": "Anarchy",
   "modName": "Anarchy",
   "version": "2026-02-20",
   "entries": {
@@ -46,10 +46,11 @@ License: MIT</LongDescription>
   <Screenshot Value="" />
   <Tag Value="Code Mod" />
   <ForumLink Value="" />
-  <ModVersion Value="1.1.3" />
+  <ModVersion Value="1.1.4" />
   <GameVersion Value="*" />
   <Dependency Value="" />
-  <ChangeLog>v1.1.3: Fix self-injection MemorySource interfering with other mod extraction.
+  <ChangeLog>v1.1.4: Clear injected translations when disabled or empty, reload on setting toggle, and normalize extracted file docs.
+v1.1.3: Fix self-injection MemorySource interfering with other mod extraction.
 v1.1.2: Fix vanilla settings categories being extracted as mods.
 v1.1.1: Fix vanilla keys leaking into mod files.
 v1.1.0: Major extraction logic improvements, per-mod grouping, Phase 1.5 supplementary extraction.
